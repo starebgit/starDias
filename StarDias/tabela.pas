@@ -486,7 +486,7 @@ begin
     on E: Exception do
     begin
       LogDbError('PRENOS_RUNTIME', E);
-      raise;
+      ShowMessage('Napaka pri prenosu: ' + E.Message);
     end
   finally
     if vLoggedOn then
@@ -499,6 +499,8 @@ begin
       end;
     end;
 
+    if Table1.Active and (Table1.State in dsEditModes) then
+      Table1.Cancel;
     if Table1.Active then
       Table1.Close;
     Table1.exclusive := false ;
