@@ -701,83 +701,86 @@ var
   dict: TDictionary<string, Integer>; // Ključ bo "Koda+Avtomat", vrednost pa "Donos"
   kljuc: string;
 begin
-  table1.Filtered := False;
-  dd := DateToStr(d1);
-  table1.Filter := 'datum = ' + QuotedStr(dd);
-  table1.Filtered := True;
-  table1.Open;
-
-  // 1. KORAK: Dodelitev avtomatov (brez sprememb v logiki)
-  table1.First;
-  while not table1.Eof do
-  begin
-    avt := fSinapro.getAvtomat(
-  Table1.FieldByName('NALOG').AsString,
-  Round(Table1.FieldByName('DONOS').AsFloat),
-  d1
-);
-    table1.Edit;
-    Table1.FieldByName('AVTOMAT').AsFloat := avt;
-    table1.Post;
-    table1.Next;
-  end;
-
-  // 2. KORAK: Zbiranje podatkov v Dictionary in brisanje podvojencev
-  dict := TDictionary<string, Integer>.Create;
   try
+    table1.Filtered := False;
+    dd := DateToStr(d1);
+    table1.Filter := 'datum = ' + QuotedStr(dd);
+    table1.Filtered := True;
+    table1.Open;
+
+    // 1. KORAK: Dodelitev avtomatov (brez sprememb v logiki)
     table1.First;
     while not table1.Eof do
     begin
-      kd  := Table1.FieldByName('NALOG').AsString;
-kol := Round(Table1.FieldByName('DONOS').AsFloat);
-avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
+      avt := fSinapro.getAvtomat(
+        Table1.FieldByName('NALOG').AsString,
+        Round(Table1.FieldByName('DONOS').AsFloat),
+        d1
+      );
+      table1.Edit;
+      Table1.FieldByName('AVTOMAT').AsFloat := avt;
+      table1.Post;
+      table1.Next;
+    end;
 
-
-      if avt <> 0 then
+    // 2. KORAK: Zbiranje podatkov v Dictionary in brisanje podvojencev
+    dict := TDictionary<string, Integer>.Create;
+    try
+      table1.First;
+      while not table1.Eof do
       begin
+        kd  := Table1.FieldByName('NALOG').AsString;
+        kol := Round(Table1.FieldByName('DONOS').AsFloat);
+        avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
+
+        if avt <> 0 then
+        begin
+          kljuc := kd + '_' + IntToStr(avt);
+
+          if dict.ContainsKey(kljuc) then
+          begin
+            // Če že obstaja, prištejemo donos in IZBRIŠEMO trenutni zapis
+            dict[kljuc] := dict[kljuc] + kol;
+            table1.Delete;
+            // POZOR: Po Delete se kazalec samodejno premakne na naslednji zapis,
+            // zato tukaj NE kličemo table1.Next!
+            Continue;
+          end
+          else
+          begin
+            dict.Add(kljuc, kol);
+          end;
+        end;
+        table1.Next;
+      end;
+
+      // 3. KORAK: Posodobitev preostalih zapisov s skupnimi donosi
+      table1.First;
+      while not table1.Eof do
+      begin
+        kd  := Table1.FieldByName('NALOG').AsString;
+        avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
         kljuc := kd + '_' + IntToStr(avt);
 
         if dict.ContainsKey(kljuc) then
         begin
-          // Če že obstaja, prištejemo donos in IZBRIŠEMO trenutni zapis
-          dict[kljuc] := dict[kljuc] + kol;
-          table1.Delete;
-          // POZOR: Po Delete se kazalec samodejno premakne na naslednji zapis,
-          // zato tukaj NE kličemo table1.Next!
-          Continue;
-        end
-        else
-        begin
-          dict.Add(kljuc, kol);
+          table1.Edit;
+          Table1.FieldByName('DONOS').AsFloat := dict[kljuc];
+          table1.Post;
         end;
+        table1.Next;
       end;
-      table1.Next;
+    finally
+      dict.Free;
     end;
-
-    // 3. KORAK: Posodobitev preostalih zapisov s skupnimi donosi
-    table1.First;
-    while not table1.Eof do
-    begin
-      kd  := Table1.FieldByName('NALOG').AsString;
-      avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
-      kljuc := kd + '_' + IntToStr(avt);
-
-
-      if dict.ContainsKey(kljuc) then
-      begin
-        table1.Edit;
-        Table1.FieldByName('DONOS').AsFloat := dict[kljuc];
-
-        table1.Post;
-      end;
-      table1.Next;
-    end;
-
   finally
-    dict.Free;
+    if table1.Active and (table1.State in dsEditModes) then
+      table1.Cancel;
+    table1.Filtered := False;
+    table1.Filter := '';
+    if table1.Active then
+      table1.Close;
   end;
-
-  table1.Close;
 end;
 
 
@@ -811,9 +814,9 @@ begin
       pp := Fvseb.getpec(kd,Table1.FieldByName('DATUM').AsDateTime+1) ;
       if pp > 0 then
       begin
-        table1.edit ;
+        table1.Edit;
         Table1.FieldByName('PEC').AsFloat := pp;
-        Table1.post ;
+        table1.Post;
       end else
       begin
         pp := Fvseb.getpec(kd,Table1.FieldByName('DATUM').AsDateTime) ;
@@ -823,10 +826,10 @@ begin
          Table1.FieldByName('PEC').AsFloat := pp;
          Table1.post ;
         end
-      end ;  
+      end ;
     end ;
     table1.Next ;
-  end ;
+  end;
   Table1.Filter := '';
   Table1.filtered := false ;
   Table1.Last ;
