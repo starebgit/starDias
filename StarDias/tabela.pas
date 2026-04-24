@@ -130,7 +130,6 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
       otip : char ;
       vMachine : string ;
       vLoggedOn : Boolean ;
-      vPrenosOk : Boolean ;
 
    function PreveriDan(st_potr : string; don : Integer) : boolean ;
    begin
@@ -184,7 +183,6 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
 begin
   vMachine := GetMachineNameSafe;
   vLoggedOn := False;
-  vPrenosOk := False;
   plist := nil;
   LogStep('PRENOS_START', 'ix=' + IntToStr(ix) + '; dat=' + DateToStr(dat));
 
@@ -452,14 +450,29 @@ begin
          end ;
            inc(i)
         end ;
-        vPrenosOk := True;
+        Fstart.edit3.text := 'PRENOS KONČAN' ;
+        Fstart.Update ;
       end
     end
     else
       LogStep('SAP_LOGON', 'LogOn returned FALSE');
 
+    if Table1.Active then
+      Table1.Close ;
+
+    if vLoggedOn then
+    begin
+      try
+        Connection.LogOff;
+      except
+        on E: Exception do
+          LogDbError('SAP_LOGOFF', E);
+      end;
+      vLoggedOn := False;
+    end;
+
     // brisanje storniranih
-    if vPrenosOk and Assigned(plist) and (plist.count > 0) then
+    if Assigned(plist) and (plist.count > 0) then
     begin
       if Table1.Active then
         Table1.Close;
@@ -480,8 +493,7 @@ begin
       end;
     end ;
 
-    if vPrenosOk then
-      grupirajavtom(dat,ix) ;
+    grupirajavtom(dat,ix) ;
   except
     on E: Exception do
     begin
@@ -490,14 +502,12 @@ begin
     end;
   finally
     if vLoggedOn then
-    begin
       try
         Connection.LogOff;
       except
         on E: Exception do
           LogDbError('SAP_LOGOFF', E);
       end;
-    end;
 
     if Table1.Active and (Table1.State in dsEditModes) then
       Table1.Cancel;
@@ -506,23 +516,8 @@ begin
     Table1.exclusive := false ;
 
     if Assigned(plist) then
-    begin
-      for i := 0 to plist.Count - 1 do
-      begin
-        poi := plist[i];
-        Dispose(poi);
-      end;
       plist.Free;
-    end;
-
-    if vPrenosOk then
-    begin
-      Fstart.edit3.text := 'PRENOS KONČAN' ;
-      Fstart.Update ;
-      LogStep('PRENOS_END', 'status=OK');
-    end
-    else
-      LogStep('PRENOS_END', 'status=FAILED_OR_ABORTED');
+    LogStep('PRENOS_END', 'status=DONE');
   end;
 end;
 
