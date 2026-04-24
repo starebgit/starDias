@@ -84,6 +84,8 @@ type
     function DatToText(dt : TdateTime) : string ;
     Procedure GrupirajAvtom(d1 : TdateTime; ix : integer) ;
     procedure PisiLog(logtxt : string) ;
+    procedure LogPrenosEvent(const Step, Msg : string) ;
+    procedure LogPrenosDbFailure(const Step : string; const E : Exception) ;
   public
     Procedure  prenos(dat : TdateTime; ix : Integer) ;
     procedure PokaziVse ;
@@ -142,6 +144,9 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
       ssx : string[8] ;
       ss1 : string[4] ;
       otip : char ;
+      ConnectionLoggedOn : Boolean ;
+      Success : Boolean ;
+      StepName : string ;
 
    function PreveriDan(st_potr : string; don : Integer) : boolean ;
    begin
@@ -162,251 +167,269 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
 begin
   if dat >= date then
   begin
-     ShowMessage('Prenos za današnji dan ni mogoè') ;
+     ShowMessage('Prenos za dana?nji dan ni mogo?') ;
      exit
   end ;
 
-  // Ekskluzivna raba tabele
-  Table1.exclusive := true ;
+  Connection := Unassigned ;
+  plist := TList.Create ;
+  ConnectionLoggedOn := false ;
+  Success := false ;
+  StepName := 'init' ;
 
   try
-    table1.open ;
-  except
-     ShowMessage('datoteka je zasedena') ;
-     Table1.exclusive := false ;
-     exit ;
-  end ;
-
-  if ix = 1 then
-  begin
-    // preverim èe je bil prenos že izvršen
-    if Table1.Locate('datum',dat,[]) then
-    begin
-      ShowMessage('Prenos za ta dan je že izveden') ;
-      Table1.Close ;
-      Table1.exclusive := false ;
-      exit
+    StepName := 'exclusive table open' ;
+    Table1.exclusive := true ;
+    try
+      Table1.Open ;
+    except
+      on E : Exception do
+      begin
+        LogPrenosDbFailure(StepName, E) ;
+        ShowMessage('datoteka je zasedena') ;
+        exit ;
+      end;
     end ;
-  end ;
 
-  prijava(Connection) ;
+    if ix = 1 then
+    begin
+      StepName := 'existing transfer check' ;
+      if Table1.Locate('datum',dat,[]) then
+      begin
+        ShowMessage('Prenos za ta dan je ?e izveden') ;
+        exit
+      end ;
+    end ;
 
-  // pretvorba datuma v SAP format
-  dtt := DatToText(dat) ;
-  PisiLog(IntTostr(ix) + '#' + dtt) ;
-  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
-  begin
-    // preberem tabelo potrditev za doloèen datum
-    SAPFunctions1.Connection := Idispatch(Connection);
-    funct := sapFunctions1.add('ZETA_RFC_READ_AFRU');
-    Funct.EXPORTS('dday').VALUE := dtt;
-    if not funct.call then           // èe ni bilo v redu
-       showMessage(funct.exception)
+    StepName := 'SAP login preparation' ;
+    prijava(Connection) ;
+
+    dtt := DatToText(dat) ;
+    LogPrenosEvent('START', IntTostr(ix) + '#' + dtt) ;
+
+    StepName := 'SAP logon' ;
+    if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
+    begin
+      ConnectionLoggedOn := true ;
+
+      StepName := 'read confirmations from SAP' ;
+      SAPFunctions1.Connection := Idispatch(Connection);
+      funct := sapFunctions1.add('ZETA_RFC_READ_AFRU');
+      Funct.EXPORTS('dday').VALUE := dtt;
+      if not funct.call then
+      begin
+        LogPrenosEvent('SAP_CALL_FAIL', VarToStr(funct.exception)) ;
+        showMessage(funct.exception)
+      end
+      else
+      begin
+         tab := funct.TABLES.item('IT_AFRU');
+         kk := Tab.rowCount ;
+
+         jj := 1 ;
+         i := 1 ;
+         nn := 0 ;
+
+         while i <= kk do
+         begin
+           Fstart.edit3.text := IntTostr(i)  + '/' + IntTostr(kk)  ;
+           Fstart.Update ;
+
+           st_potr := tab.value(i,2) ;
+           st_nal  := tab.value(i,68) ;
+           arbid := Tab.value(i,9) ;
+
+           dm1 := (arbid = '10004954') or (arbid = '10004956') or (arbid = '10005372') or (arbid = '10006756') or (arbid = '10008157') ;
+           dm2 := (arbid = '10005289') or (arbid = '10005004') or (arbid = '10005112') or (arbid = '10008593');
+           if dm1 or dm2 then
+           begin
+             if arbid = '10004954' then wcen := '4046-401' ;
+             if arbid = '10004956' then wcen := '4049-401' ;
+             if arbid = '10005372' then wcen := '4475-401' ;
+             if arbid = '10006756' then wcen := '4047-401' ;
+             if arbid = '10008157' then wcen := '4605-401' ;
+
+             if arbid = '10005289' then wcen := '4391-401' ;
+             if arbid = '10005004' then wcen := '4076-401' ;
+             if arbid = '10005112' then wcen := '4170-401' ;
+             if arbid = '10008593' then wcen := '4417-401' ;
+             don := Tab.value(i,38);
+
+             if don > 0 then
+             begin
+               if tab.value(i,95) = 'X' then
+               begin
+                 new(poi) ;
+                 poi^.stp := st_potr ;
+                 poi^.dons := don ;
+                 plist.add(poi) ;
+                 inc(i) ;
+                 continue ;
+               end ;
+
+               SAPFunctions1.Connection := Idispatch(Connection);
+               funct1 := sapFunctions1.add('BAPI_PRODORD_GET_DETAIL');
+               funct1.exports('NUMBER').value := st_nal ;
+               funct1.exports('ORDER_OBJECTS').value(1) := 'X' ;
+               funct1.exports('ORDER_OBJECTS').value(2) := 'X' ;
+               funct1.exports('ORDER_OBJECTS').value(4) := 'X' ;
+               if not funct1.call then
+               begin
+                 LogPrenosEvent('SAP_CALL_FAIL', VarToStr(funct1.exception)) ;
+                 showMessage(funct1.exception) ;
+               end ;
+
+               tabb := funct1.TABLES.item('HEADER');
+               tabc := funct1.TABLES.item('POSITION');
+               tabv := funct1.TABLES.item('OPERATION');
+               mrp := tabb.value(1,3) ;
+
+               if length(tabb.value(1,5 )) > 5 then
+               begin
+                 n1 := 0 ;
+                 n2 := 100 ;
+                 n3 := 100 ;
+                 n4 := 0 ;
+                 otip := 'R' ;
+                 for ii := 1 to tabv.rowcount do
+                 begin
+                    ssx := tabv.value(ii,43) ;
+                    ss1 := copy(ssx,1,4) ;
+                    if ss1 = '4155' then otip := 'S' ;
+
+                    if (ss1 = '4334') or (ss1 = '4452') or (ss1 = '4337') or (ss1 = '4338') then  n1 := ii ;
+                    if (ss1 = '4046') or (ss1 = '4049') or (ss1 = '4475') or (ss1 = '4047') then  n3 := ii ;
+                    if (ssx = '4391-401') or (ssx = '4076-401') or (ssx = '4417-401') then n2 := ii ;
+                    if ssx = '4170-401' then  n4 := ii
+
+                 end ;
+
+                 if ((n1 < n2) and dm1) or ((n2 < n1) and dm2) or ((n3 < n4) and dm2) then nsm := true else nsm := false ;
+                 if n4 > 0 then
+                 begin
+                   if (n3 < n4) and dm2 then nsm := true else nsm := false ;
+                 end ;
+
+                 if nsm then
+                 begin
+                    koda := kodaForm(tabb.value(1,5 ),'-',false) ;
+                    skl := tabc.value(1,14) ;
+                    pp := copy(koda,14,2);
+
+                    if otip = 'R' then cc := 'Y'
+                      else  if (copy(skl,3,2) = '47') or (copy(skl,3,2) = '80') then cc := 'X' else cc := 'U' ;
+                    koda[1] := '0' ;
+                    if koda[2] = '-' then koda[2] := '0' ;
+                    kd := trim(koda) ;
+                    db := 0 ;
+                    FcasiSt.najdi(kd,db,t1,t2,t3,tz,pk) ;
+                    if db = 0 then
+                    begin
+                      Fstart.memo1.Lines.Add(kd) ;
+                      Fstart.Update ;
+                    end ;
+                    pc := FVseb.Getpec(copy(koda,1,12),dat) ;
+                    if ix = 2 then prv := PreveriDan(st_potr,don) else prv := true ;
+                    if prv then
+                    begin
+                      Table1.Append;
+                      Table1NALOG.AsString := Copy(st_nal,6,7);
+                      Table1KODA.AsString := koda;
+                      Table1POTRDITEV.AsString := st_potr;
+                      Table1DONOS.AsFloat := don;
+                      Table1DELMESTO.AsString := wcen;
+                      Table1DATUM.AsDateTime := dat;
+
+                      Table1DOBA.AsFloat := db;
+                      Table1RAZLIKA.AsFloat := 0;
+                      Table1TIP.AsString := cc;
+                      Table1PEC.AsFloat := pc;
+                      Table1SKLAD.AsString := skl;
+
+                      Table1TK1.AsFloat := t1;
+                      Table1TK2.AsFloat := t2;
+                      Table1TK3.AsFloat := t3;
+
+                      Table1AVTOMAT.AsFloat := 0;
+
+                      Table1.Post;
+                    end;
+                 end ;
+               end ;
+               Funct1.Tables.Item('header').DeleteRow ;
+               Funct1.Tables.Item('position').DeleteRow ;
+               for j := 1 to tabv.rowCount do tabv.DeleteRow ;
+             end ;
+           end ;
+           inc(i)
+        end ;
+      end
+    end
     else
     begin
-       tab := funct.TABLES.item('IT_AFRU');    // tabela rezultatov
-       kk := Tab.rowCount ;
+      LogPrenosEvent('SAP_LOGON_FAIL', 'Connection.LogOn returned false') ;
+    end ;
 
-       jj := 1 ;
-       i := 1 ;
-       nn := 0 ;
-       plist := Tlist.Create ;
+    StepName := 'cleanup canceled confirmations' ;
+    if Table1.Active then
+    begin
+      Table1.Close ;
+    end ;
 
-       while i <= kk do             // po vseh vrsticah tabele
-       begin
-         // izpišem št. vrstice v obdelavi prenosa
-         Fstart.edit3.text := IntTostr(i)  + '/' + IntTostr(kk)  ;
-         Fstart.Update ;
-
-         // preberem osnovne podatke
-         st_potr := tab.value(i,2) ;
-         st_nal  := tab.value(i,68) ;
-         arbid := Tab.value(i,9) ;
-
-         // omejim se na potrditve iz treh delovnih mest
-         dm1 := (arbid = '10004954') or (arbid = '10004956') or (arbid = '10005372') or (arbid = '10006756') or (arbid = '10008157') ;
-         dm2 := (arbid = '10005289') or (arbid = '10005004') or (arbid = '10005112') or (arbid = '10008593');
-         if dm1 or dm2 then
-         begin
-           // šifre delovnih mest pretvorim v nazive delovnih mest.
-           if arbid = '10004954' then wcen := '4046-401' ;
-           if arbid = '10004956' then wcen := '4049-401' ;
-           if arbid = '10005372' then wcen := '4475-401' ;
-           if arbid = '10006756' then wcen := '4047-401' ;
-           //if arbid = '10008158' then wcen := '4482-401' ;
-           if arbid = '10008157' then wcen := '4605-401' ;
-
-           if arbid = '10005289' then wcen := '4391-401' ;
-           if arbid = '10005004' then wcen := '4076-401' ;
-           if arbid = '10005112' then wcen := '4170-401' ;
-           if arbid = '10008593' then wcen := '4417-401' ;
-           don := Tab.value(i,38);
-
-           if don > 0 then          // omejim se na potrditve ki imajo donos veèji od 0
-           begin
-             // obravnava stornov
-             if tab.value(i,95) = 'X' then
-             begin
-               new(poi) ;
-               poi^.stp := st_potr ;
-               poi^.dons := don ;
-               plist.add(poi) ;
-               inc(i) ;
-               continue ;
-             end ;
-
-             // preberem podatke iz delovnega naloga
-             SAPFunctions1.Connection := Idispatch(Connection);
-             funct1 := sapFunctions1.add('BAPI_PRODORD_GET_DETAIL');
-             funct1.exports('NUMBER').value := st_nal ;
-             funct1.exports('ORDER_OBJECTS').value(1) := 'X' ;
-             funct1.exports('ORDER_OBJECTS').value(2) := 'X' ;
-             funct1.exports('ORDER_OBJECTS').value(4) := 'X' ;
-             if not funct1.call then           // èe ni bilo v redu
-               showMessage(funct1.exception) ;
-
-             // potrebujem podatke iz dveh tabel
-             tabb := funct1.TABLES.item('HEADER');
-             tabc := funct1.TABLES.item('POSITION');
-             tabv := funct1.TABLES.item('OPERATION');
-             mrp := tabb.value(1,3) ;
-
-             // preverim èe je podatek o kodi pravi
-             if length(tabb.value(1,5 )) > 5 then
-             begin
-               n1 := 0 ;
-               n2 := 100 ;
-               n3 := 100 ;
-               n4 := 0 ;
-               otip := 'R' ;
-               for ii := 1 to tabv.rowcount do
-               begin
-                  ssx := tabv.value(ii,43) ;
-                  ss1 := copy(ssx,1,4) ;
-                  if ss1 = '4155' then otip := 'S' ;
-
-                  // Ali sem našel operacijo staranja
-                  if (ss1 = '4334') or (ss1 = '4452') or (ss1 = '4337') or (ss1 = '4338') then  n1 := ii ;
-                  if (ss1 = '4046') or (ss1 = '4049') or (ss1 = '4475') or (ss1 = '4047') then  n3 := ii ;
-                  // Ali sem našel specialno operacijo
-                  if (ssx = '4391-401') or (ssx = '4076-401') or (ssx = '4417-401') then n2 := ii ;
-                  if ssx = '4170-401' then  n4 := ii
-
-               end ;
-
-               if ((n1 < n2) and dm1) or ((n2 < n1) and dm2) or ((n3 < n4) and dm2) then nsm := true else nsm := false ;
-               if n4 > 0 then   // èe je krivljenje je to pravi kriterij
-               begin
-                 if (n3 < n4) and dm2 then nsm := true else nsm := false ;
-               end ;
-
-               if nsm then
-               begin
-                  // pretvorba dolge kode v obièajno kodo
-                 { SAPFunctions1.Connection := Idispatch(Connection);
-                  Funct3 := SAPFunctions1.add('ZRFC_CONV_MATNR_GET');
-                  funct3.exports('RFC_INPUT').value := tabb.value(1,5 ) ;
-                  funct3.exports('RFC_IO_KENNZ').value := 'O' ;
-                  Funct3.call ;
-                  koda := funct3.imports('RFC_OUTPUT').value ; }
-                  koda := kodaForm(tabb.value(1,5 ),'-',false) ;
-                  skl := tabc.value(1,14) ;       // skladišèe
-                  pp := copy(koda,14,2);
-
-                  if otip = 'R' then cc := 'Y'    // 100%
-                    else  if (copy(skl,3,2) = '47') or (copy(skl,3,2) = '80') then cc := 'X' else cc := 'U' ;   // statistièna
-                  koda[1] := '0' ;
-                  if koda[2] = '-' then koda[2] := '0' ;
-                  kd := trim(koda) ;
-                  db := 0 ;
-                  FcasiSt.najdi(kd,db,t1,t2,t3,tz,pk) ;      // preberem predpisano dobo staranja
-                  if db = 0 then                 // èe tega podatka ne najdem
-                  begin
-                    Fstart.memo1.Lines.Add(kd) ;
-                    Fstart.Update ;
-                  end ;
-                  pc := FVseb.Getpec(copy(koda,1,12),dat) ;
-                  if ix = 2 then prv := PreveriDan(st_potr,don) else prv := true ;
-                  if prv then
-//                     Table1.AppendRecord([
-//                      copy(st_nal,6,7),
-//                      koda,
-//                      st_potr,
-//                      don,
-//                      wcen,
-//                      dat,
-//                      Double(db),
-//                      0.0,
-//                      cc,
-//                      Double(pc),
-//                      skl,
-//                      Double(t1),
-//                      Double(t2),
-//                      Double(t3)
-//                    ]);
-                      if prv then
-                      begin
-                        Table1.Append;
-                        Table1NALOG.AsString := Copy(st_nal,6,7);
-                        Table1KODA.AsString := koda;
-                        Table1POTRDITEV.AsString := st_potr;
-                        Table1DONOS.AsFloat := don;
-                        Table1DELMESTO.AsString := wcen;
-                        Table1DATUM.AsDateTime := dat;
-
-                        Table1DOBA.AsFloat := db;
-                        Table1RAZLIKA.AsFloat := 0;
-                        Table1TIP.AsString := cc;
-                        Table1PEC.AsFloat := pc;
-                        Table1SKLAD.AsString := skl;
-
-                        Table1TK1.AsFloat := t1;
-                        Table1TK2.AsFloat := t2;
-                        Table1TK3.AsFloat := t3;
-
-                        // if you want avtomat here too, leave it 0 for now (it gets set later in GrupirajAvtom)
-                        Table1AVTOMAT.AsFloat := 0;
-
-                        Table1.Post;
-                      end;
-
-               end ;
-             end ;
-             Funct1.Tables.Item('header').DeleteRow ;
-             Funct1.Tables.Item('position').DeleteRow ;
-             for j := 1 to tabv.rowCount do tabv.DeleteRow ;
-           end ;
-         end ;
-         inc(i)
+    if plist.count > 0 then
+    begin
+      Table1.Open ;
+      for i := 0 To plist.count-1 do
+      begin
+        poi := plist[i] ;
+        if not Correct(poi^.stp,poi^.dons) then
+        begin
+           Fstart.memo2.Lines.Add(poi^.stp + '/' + Inttostr(poi^.dons)) ;
+           Fstart.Update ;
+        end ;
       end ;
-      Fstart.edit3.text := 'PRENOS KONÈAN' ;
-      Fstart.Update ;
-    end
-  end ;
-  table1.Close ;
+      Table1.Close ;
+    end ;
 
-  Connection.LogOff;
-  // brisanje storniranih
-  if plist.count > 0 then
-  begin
-    Table1.Open ;
-    for i := 0 To plist.count-1 do
+    StepName := 'grouping avtomat' ;
+    grupirajavtom(dat,ix) ;
+    LogPrenosEvent('END', IntTostr(ix) + '#' + dtt) ;
+    Success := true ;
+  except
+    on E : Exception do
+    begin
+      LogPrenosDbFailure(StepName, E) ;
+      raise ;
+    end;
+  finally
+    for i := plist.Count-1 downto 0 do
     begin
       poi := plist[i] ;
-      if not Correct(poi^.stp,poi^.dons) then
-      begin
-         Fstart.memo2.Lines.Add(st_potr + '/' + Inttostr(don)) ;
-         Fstart.Update ;
-      end ;
+      Dispose(poi) ;
     end ;
     plist.Free ;
-    Table1.Close ;
-  end ;
-  grupirajavtom(dat,ix) ;
-  Table1.exclusive := false ;
+
+    if ConnectionLoggedOn then
+    begin
+      try
+        Connection.LogOff;
+      except
+        on E : Exception do LogPrenosDbFailure('SAP logoff', E) ;
+      end;
+    end ;
+
+    if Table1.Active then Table1.Close ;
+    Table1.exclusive := false ;
+
+    if Success then
+      Fstart.edit3.text := 'PRENOS KON?AN'
+    else
+      Fstart.edit3.text := 'PRENOS PREKINJEN' ;
+    Fstart.Update ;
+  end;
 end;
 
-// prikaz tabele vseh prenešenih podatkov
+// prikaz tabele vseh preneÅ¡enih podatkov
 procedure Tftabela.PokaziVse ;
 begin
   width := 1000 ;
@@ -472,7 +495,7 @@ begin
 end ;
 
 
-// prikaz tabele predpisanih èasov
+// prikaz tabele predpisanih Ã¨asov
 procedure TFtabela.Tabelapredpisanihasov1Click(Sender: TObject);
 begin
   FCasiSt.pokazi ;
@@ -500,7 +523,7 @@ begin
 end;
 
 
-// popravilo oziroma vpis predpisanega èasa staranja
+// popravilo oziroma vpis predpisanega Ã¨asa staranja
 procedure TFtabela.Pridobipredpisanias1Click(Sender: TObject);
     var kd,sf,mater,kk,pk,dodkd,kdd : string ;
       db,t1,t2,t3,tt : integer ;
@@ -511,7 +534,7 @@ begin
   dodkd := copy(kdd,14,2) ;
   kd := copy(kdd,1,12) ;
 
-  //  v bazi MPTER išèem po kodi
+  //  v bazi MPTER iÅ¡Ã¨em po kodi
   FcasiSt.isci(kd,db,t1,t2,t3,tt,pk,kkon) ;
   if db <> 0 then
   begin
@@ -526,7 +549,7 @@ begin
   end ;
 end;
 
-// štetje potrditev za èasovni interval
+// Å¡tetje potrditev za Ã¨asovni interval
 procedure TFtabela.Analizazaendan1Click(Sender: TObject);
    var stev,nn,stv1,n1 : longint ;
       dat1,dat2,dd : TdateTime ;
@@ -555,8 +578,8 @@ begin
     Table1.Next ;
   end ;
   Table1.EnableControls ;
-  ShowMessage('Število potrditev: ' + IntTostr(nn) + chr(13) +  'Dones : ' + IntTostr(stev));
-  ShowMessage('Število potrditev: ' + IntTostr(n1) + chr(13) +  'Donos : ' + IntTostr(stv1))
+  ShowMessage('Å tevilo potrditev: ' + IntTostr(nn) + chr(13) +  'Dones : ' + IntTostr(stev));
+  ShowMessage('Å tevilo potrditev: ' + IntTostr(n1) + chr(13) +  'Donos : ' + IntTostr(stv1))
 end;
 
 // omejitev na zapise brez predpisane dobe staranja
@@ -574,13 +597,13 @@ begin
   end ;
 end;
 
-// Procedura za eliminacijo veèkratnih zapisov iste kode in avtomata
+// Procedura za eliminacijo veÃ¨kratnih zapisov iste kode in avtomata
 Procedure TFtabela.GrupirajAvtom(d1: TDateTime; ix: integer);
 var
   dd: string;
   kd: string;
   kol, avt: Integer;
-  dict: TDictionary<string, Integer>; // Kljuè bo "Koda+Avtomat", vrednost pa "Donos"
+  dict: TDictionary<string, Integer>; // KljuÃ¨ bo "Koda+Avtomat", vrednost pa "Donos"
   kljuc: string;
 begin
   table1.Filtered := False;
@@ -616,11 +639,11 @@ begin
 
         if dict.ContainsKey(kljuc) then
         begin
-          // Èe že obstaja, prištejemo donos in IZBRIŠEMO trenutni zapis
+          // Ãˆe Å¾e obstaja, priÅ¡tejemo donos in IZBRIÅ EMO trenutni zapis
           dict[kljuc] := dict[kljuc] + kol;
           table1.Delete;
           // POZOR: Po Delete se kazalec samodejno premakne na naslednji zapis,
-          // zato tukaj NE klièemo table1.Next!
+          // zato tukaj NE kliÃ¨emo table1.Next!
           Continue;
         end
         else
@@ -656,7 +679,7 @@ begin
 end;
 
 
-// omejitev na zapise ki nimajo podatke o peèi
+// omejitev na zapise ki nimajo podatke o peÃ¨i
 procedure TFtabela.Brezpei1Click(Sender: TObject);
 begin
   If not table1.Filtered then
@@ -670,7 +693,7 @@ begin
   end ;
 end;
 
-// poskušam pridobiti podatke o peèi
+// poskuÅ¡am pridobiti podatke o peÃ¨i
 procedure TFtabela.Vpispei1Click(Sender: TObject);
   var pp : Integer ;
       kd,dd : string ;
@@ -735,7 +758,7 @@ end;
 procedure TFtabela.Briivrstico1Click(Sender: TObject);
   var ii : Integer ;
 begin
-  ii := MessageDlg('Ali zares želiš izbrisati',mtConfirmation,[mbYes, mbNo],0);
+  ii := MessageDlg('Ali zares Å¾eliÅ¡ izbrisati',mtConfirmation,[mbYes, mbNo],0);
   if ii = 6 then  Table1.Delete
 end;
 
@@ -753,7 +776,7 @@ begin
    funct1.exports('ORDER_OBJECTS').value(1) := 'X' ;
    funct1.exports('ORDER_OBJECTS').value(4) := 'X' ;
    vredu := true ;
-   if not funct1.call then           // èe ni bilo v redu
+   if not funct1.call then           // Ã¨e ni bilo v redu
      vredu := false
    else
    begin
@@ -792,7 +815,7 @@ begin
    result := funct2.imports('RFC_OUTPUT').value ;
 end;
 
-// donos in izmet za doloèeno potrditev
+// donos in izmet za doloÃ¨eno potrditev
 procedure TFtabela.getDonos(connection : variant; stnal,conf : string;  var yield,scrap : longint) ;
   var funct2,tabs : variant ;
       fdate : TdateTime ;
@@ -804,10 +827,39 @@ begin
    funct2 := sapFunctions1.add('ZETA_RFC_READ_AFRU');
    Funct2.EXPORTS('dday').VALUE := fdate ;
    Funct2.EXPORTS('stnal').VALUE := stnal;
-   funct2.call ;           // èe ni bilo v redu
-   tabs := funct2.TABLES.item('IT_AFRU');    // tabela rezultatov
-   mm := tabs.rowcount ;
-   yield := 0 ;
+procedure TFtabela.LogPrenosEvent(const Step, Msg : string) ;
+begin
+  PisiLog('PRENOS|' + Step + '|' + Msg + '|MACHINE=' + GetEnvironmentVariable('COMPUTERNAME')) ;
+end;
+
+procedure TFtabela.LogPrenosDbFailure(const Step : string; const E : Exception) ;
+  var DbCode : Integer ;
+      DbMsg : string ;
+begin
+  DbCode := 0 ;
+  DbMsg := '' ;
+
+  if E is EDBEngineError then
+  begin
+    if EDBEngineError(E).ErrorCount > 0 then
+    begin
+      DbCode := EDBEngineError(E).Errors[0].ErrorCode ;
+      DbMsg := EDBEngineError(E).Errors[0].Message ;
+    end;
+  end;
+
+  LogPrenosEvent('DB_FAIL', 'STEP=' + Step + ';CODE=' + IntToStr(DbCode) + ';MSG=' + E.Message + ';DBMSG=' + DbMsg) ;
+end;
+
+  if FileExists(imef) then Append(ff)
+                     else Rewrite(ff);
+  try
+    Writeln(ff, dateTimeTostr(now) + '  '  + logtxt) ;
+    Flush(ff);
+  finally
+    CloseFile(ff);
+  end;
+
    scrap := 0 ;
    for m := 1 to mm do
    begin
