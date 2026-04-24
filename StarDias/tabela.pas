@@ -131,7 +131,6 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
       vMachine : string ;
       vLoggedOn : Boolean ;
       vPrenosOk : Boolean ;
-      logIdx : Integer ;
 
    function PreveriDan(st_potr : string; don : Integer) : boolean ;
    begin
@@ -169,6 +168,7 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
    procedure LogDbError(const AStep : string; E : Exception) ;
      var
        dbErr : EDBEngineError ;
+       logIdx : Integer ;
    begin
      LogStep(AStep, 'EX=' + E.ClassName + '; MSG=' + E.Message);
      if E is EDBEngineError then
@@ -487,7 +487,7 @@ begin
     begin
       LogDbError('PRENOS_RUNTIME', E);
       ShowMessage('Napaka pri prenosu: ' + E.Message);
-    end
+    end;
   finally
     if vLoggedOn then
     begin
