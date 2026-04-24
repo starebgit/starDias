@@ -1,0 +1,410 @@
+unit casiSt;
+
+interface
+
+uses
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, Dialogs,
+  StdCtrls, Forms, DBCtrls, DB, DBGrids, DBTables, Grids, ExtCtrls,
+  Data.Win.ADODB;
+
+type
+  sest = array[1..6] of boolean ;
+  TFcasiSt = class(TForm)
+    DBGrid1: TDBGrid;
+    Panel1: TPanel;
+    DataSource1: TDataSource;
+    Panel2: TPanel;
+    Button2: TButton;
+    Button1: TButton;
+    Button3: TButton;
+    Button4: TButton;
+    ADOQuery1: TADOQuery;
+    Table1: TTable;
+    Table1KODA: TStringField;
+    Table1DNI: TSmallintField;
+    Table1TK1: TSmallintField;
+    Table1TK2: TSmallintField;
+    Table1TK3: TSmallintField;
+    Table1SKODA: TStringField;
+    Table1TSTAT: TSmallintField;
+    Table1PAKIR: TStringField;
+    Button5: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+  private
+    Procedure OdpriKd(kd : string) ;
+    Procedure Odprisf(kd : string) ;
+    Procedure Odpri ;
+  public
+    procedure pokazi ;
+    //function najdi(kd: string) : integer ;
+    procedure najdi(kd: string; var cas,t1,t2,t3,tt : integer; var pk : string)  ;
+    procedure najdi_00(kd: string; var cas,t1,t2,t3,tt : integer; var pk : string)  ;
+    procedure isci(kd: string; var dd,t1,t2,t3,tt : integer; var cr : string; var kkon : sest) ;
+    procedure Zapis(kd,kk,pk: string; db,t1,t2,t3,tt : integer);
+    procedure isciTemp(kd: string; var dd,t1,t2,t3 : integer) ;
+    Function stark(kd : string) : string ;
+    procedure poprav(kd : string) ;
+  end;
+
+var
+  FcasiSt: TFcasiSt;
+
+implementation
+
+{$R *.DFM}
+
+procedure TFcasiSt.FormCreate(Sender: TObject);
+   var pt : string ;
+begin
+ // Table1.Open;
+  pt := application.exename ;
+  table1.DatabaseName := ExtractFileDir(pt) ;
+  Adoquery1.ConnectionString := 'FILE NAME=' + ExtractFileDir(pt) + '\DIA_01.UDL'
+end;
+
+// prikaz tabele predpisanih èasov staranja
+procedure TFcasiSt.pokazi ;
+begin
+  Table1.indexName := 'koda' ;
+  Table1.open ;
+  ShowModal ;
+  Table1.close ;
+end ;
+
+procedure TFcasiSt.poprav(kd : string) ;
+begin
+  Table1.open  ;
+  if Table1.Locate('koda',kd,[]) then
+  begin
+    table1.edit ;
+    if table1pakir.value = 'R' then table1pakir.value := 'N'
+                               else  table1pakir.value := 'R' ;
+    table1.post ;
+  end ;
+  table1.Close ;
+end ;
+
+// iskanje prepsianih podatkov po vseh konènicah
+procedure TFcasiSt.najdi_00(kd: string; var cas,t1,t2,t3,tt : integer; var pk : string)  ;
+  var ii : Integer ;
+      dod,kdd : string ;
+begin
+  for ii := 1 to 6 do
+  begin
+     case ii of
+       1 : dod := '-00' ;
+       2 : dod := '-01' ;
+       3 : dod := '-02' ;
+       4 : dod := '-10' ;
+       5 : dod := '-50' ;
+       6 : dod := '' ;
+     end;
+     kdd := Kd + dod ;
+     najdi(kdd,cas,t1,t2,t3,tt,pk) ;
+     if cas > 0 then break
+  end;
+end;
+
+// iskanje predpisanih podatkov
+procedure TFcasiSt.najdi(kd: string; var cas,t1,t2,t3,tt : integer; var pk : string)  ;
+  procedure zeros ;
+  begin
+     t1 := 0 ;
+     t2 := 0 ;
+     t3 := 0 ;
+     tt := 0 ;
+     pk := '' ;
+     cas := 0 ;
+  end ;
+begin
+  Table1.open  ;
+  if Table1.Locate('koda',kd,[]) then
+  begin
+    cas := Table1dni.value ;
+    try
+      t1 := Table1tk1.value ;
+      t2 := Table1tk2.value ;
+      t3 := Table1tk3.value ;
+      tt := Table1tstat.value ;
+      pk := Table1pakir.value ;
+    except
+      zeros
+    end ;
+  end else zeros ;
+  Table1.Close ;
+end ;
+
+// iskanje predpisanih podatkov v bazi MPTER
+procedure TFcasiSt.isci(kd: string; var dd,t1,t2,t3,tt : integer; var cr : string; var kkon : sest) ;
+  var itt : integer ;
+  function prs(im : string) :boolean ;
+  begin
+    if AdoQuery1.FieldByname(im).IsNull then result := false
+    else
+      if trim(AdoQuery1.FieldByname(im).value) = '' then result := false else result := true
+  end;
+
+  function prv : Integer ;
+  begin
+     if AdoQuery1.FieldByname('Kontrola_vz_100').IsNull then result := 0
+     else
+      if trim(AdoQuery1.FieldByname('Kontrola_vz_100').value) = '100%' then result := 2 else result := 1
+  end;
+  procedure beri ;
+    var ss : string ;
+  begin
+    try
+      dd := round(AdoQuery1.fieldbyName('cas_staranja').value/24) ;
+    except
+      dd := 2 ;
+    end;
+    t1 := AdoQuery1.fieldbyName('tk1').value ;
+    t2 := AdoQuery1.fieldbyName('tk2').value ;
+    t3 := AdoQuery1.fieldbyName('tk3').value ;
+    tt := AdoQuery1.fieldbyName('tstar').asinteger ;
+
+    itt := prv ;
+    if itt > 0 then kkon[itt] := true  ;
+
+    if prs('Kontrola_100_01') then kkon[2] := true ;
+    if prs('Kontrola_100_11') then kkon[3] := true ;
+    if prs('Kontrola_100_21') then kkon[4] := true ;
+    if prs('Kontrola_vz_00') then kkon[1] := true ;
+    if prs('Kontrola_vz_10') then kkon[5] := true ;
+    if prs('Kontrola_vz_20')then kkon[6] := true ;
+    try
+       ss := AdoQuery1.Fieldbyname('pakiranje').value ;
+     except
+       ss := ''
+     end ;
+     try
+       if ss = '' then ss := AdoQuery1.Fieldbyname('pakiranje_1').value ;
+     except
+        ss := 'NAVITI'
+     end;
+     if ss = 'NAVITI' then cr := 'N' else cr := 'R' ;
+  end ;
+begin
+  dd := 0 ;
+  OdpriKd(kd) ;
+  if not Adoquery1.isempty then    // osnovni stolpec
+  begin
+    beri
+  end else
+  begin
+    dd := 0 ;
+    t1 := 0 ;
+    t2 := 0 ;
+    t3 := 0
+  end ;
+  Adoquery1.Close ;
+end ;
+
+
+// Zapis v tabelo
+procedure  TFcasiSt.Zapis(kd,kk,pk: string; db,t1,t2,t3,tt : integer) ;
+begin
+  Table1.open ;
+  if not Table1.Locate('koda',kd,[]) then
+     Table1.Appendrecord([kd,db,t1,t2,t3,kk,tt,pk]) ;
+  Table1.Close ;
+end ;
+
+// Brisanje zapisa
+procedure TFcasiSt.Button2Click(Sender: TObject);
+  var ii : integer ;
+begin
+  ii := MessageDlg('Ali zares želiš izbrisati',mtConfirmation,[mbYes, mbNo],0);
+  if ii = 6 then  Table1.Delete
+end;
+
+procedure TFcasiSt.Button3Click(Sender: TObject);
+  var t1,t2,t3,dd : integer ;
+begin
+  Table1.First ;
+  Odpri ;
+  while not table1.eof do
+  begin
+    IsciTemp(table1koda.value,dd,t1,t2,t3) ;
+    If dd > 0 then
+    begin
+      table1.edit ;
+      Table1tk1.value := t1 ;
+      Table1tk2.value := t2 ;
+      Table1tk3.value := t3 ;
+      Table1.post
+    end ;
+    Table1.next ;
+  end ;
+  Adoquery1.Close ;
+end;
+
+
+procedure TFcasiSt.isciTemp(kd: string; var dd,t1,t2,t3 : integer) ;
+ var s1 : integer ;
+     sif : string ;
+     cc : boolean ;
+begin
+  dd := 0 ;
+  if copy(kd,1,3) = '045' then
+  begin
+    sif := copy(kd,6,3) + copy(kd,10,3) ;
+    cc := AdoQuery1.Locate('sifra_d',sif,[]) ;
+  end else
+    cc := AdoQuery1.Locate('koda_d',kd,[]) ;
+  if cc then
+  begin
+    dd := 1 ;
+    t1 := AdoQuery1.FieldbyName('tk1').value ;
+    t2 := AdoQuery1.FieldbyName('tk2').value ;
+    t3 := AdoQuery1.FieldbyName('tk3').value ;
+  end ;
+end ;
+
+Procedure TFcasiSt.OdpriKd(kd : string) ;
+begin
+  Adoquery1.SQL.Clear ;
+  Adoquery1.SQL.Add('SELECT * FROM DIA_00 where koda_d = :KOD')  ;
+  Adoquery1.Parameters[0].Name := 'KOD' ;
+  Adoquery1.Parameters[0].Value := kd ;
+  Adoquery1.Open ;
+end;
+
+Procedure TFcasiSt.Odprisf(kd : string) ;
+begin
+  Adoquery1.SQL.Clear ;
+  Adoquery1.SQL.Add('SELECT * FROM DIA_00 where sifra_d = :KOD')  ;
+  Adoquery1.Parameters[0].Name := 'KOD' ;
+  Adoquery1.Parameters[0].Value := kd ;
+  Adoquery1.Open ;
+end;
+
+Procedure TFcasiSt.Odpri ;
+begin
+  Adoquery1.SQL.Clear ;
+  Adoquery1.SQL.Add('SELECT * FROM DIA_00')  ;
+  Adoquery1.Open ;
+end;
+
+procedure TFcasiSt.Button4Click(Sender: TObject);
+  var dd,t1,t2,t3,tt,ii : integer ;
+      kd,sf,pk,dod,kdd : string ;
+      kkon : sest ;
+      kk : integer ;
+      prvi : boolean ;
+begin
+  Table1.First ;
+  While not Table1.eof do
+  begin
+    kd := table1koda.value ;
+    kd := copy(kd,1,12) ;
+    Isci(kd,dd,t1,t2,t3,tt,pk,kkon) ;
+    if dd <> 0 then
+    begin
+      Table1.edit ;
+      Table1dni.value := dd ;
+      Table1tk1.value := t1 ;
+      Table1tk2.value := t2 ;
+      Table1tk3.value := t3 ;
+      Table1tstat.value := tt ;
+      Table1pakir.value := pk ;
+      Table1.Post ;
+    end;
+    Table1.Next ;
+  end ;
+  {  for ii := 1 to 6 do kkon[ii] := false ;
+
+    Isci(kd,dd,t1,t2,t3,tt,pk,kkon) ;
+    if dd <> 0 then
+    begin
+      prvi := true ;
+      for ii := 1 to 6 do if kkon[ii] then prvi := false ;
+      if prvi then kkon[1] := true ;
+      prvi := true ;
+      for ii := 1 to 6 do
+      begin
+        case ii of
+          1 : dod := '-00' ;
+          2 : dod := '-01' ;
+          3 : dod := '-11' ;
+          4 : dod := '-21' ;
+          5 : dod := '-10' ;
+          6 : dod := '-20' ;
+        end;
+        if kkon[ii] then
+        begin
+          kdd := kd + dod ;
+          if prvi then
+          begin
+            Table1.edit ;
+         //   Table1koda.value := kdd ;
+            Table1dni.value := dd ;
+            Table1tk1.value := t1 ;
+            Table1tk2.value := t2 ;
+            Table1tk3.value := t3 ;
+            Table1tstat.value := tt ;
+            Table1pakir.value := pk ;
+            prvi := false ;
+            Table1.Post ;
+          end else
+          begin
+           // Table1.Append ;
+            inc(kk) ;
+          end;
+
+        end;
+      end;
+    end ;
+    Table1.Next ;
+  end ;
+  Showmessage(intTostr(kk)) ;   }
+end;
+
+procedure TFcasiSt.Button5Click(Sender: TObject);
+  var dd,t1,t2,t3,tt : integer ;
+      kd,sf,pk,dod,kdd,dl : string ;
+      kkon : sest ;
+      i: Integer;
+begin
+  kd := table1koda.value ;
+  dl := copy(kd,13,3) ;
+  kd := copy(kd,1,12) ;
+
+  Isci(kd,dd,t1,t2,t3,tt,pk,kkon) ;
+  for i := 1 to 6 do
+  begin
+     case i of
+          1 : dod := '-00' ;
+          2 : dod := '-01' ;
+          3 : dod := '-11' ;
+          4 : dod := '-21' ;
+          5 : dod := '-10' ;
+          6 : dod := '-20' ;
+     end;
+    if kkon[i] and (dod <> dl) then
+    begin
+      kdd := kd + dod ;
+      Table1.Appendrecord([kdd,dd,t1,t2,t3,'',tt,pk]) ;
+    end;
+  end;
+
+end;
+
+Function TFcasiSt.stark(kd : string) : string ;
+begin
+  Table1.open ;
+  If Table1.Locate('koda',kd,[]) then result := table1skoda.value
+                                 else result := '' ;
+  Table1.Close ;
+end ;
+
+
+
+
+
+
+end.

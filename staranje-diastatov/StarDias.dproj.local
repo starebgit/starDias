@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899.12.30 00:00:00.000.605,D:\Emb_programi\Termo\StarDias\Unit1.pas=D:\Emb_programi\Termo\StarDias\sinapro.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.439,D:\Emb_programi\Termo\StarDias\Unit1.pas=D:\Emb_programi\Termo\StarDias\stanje.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.132,=D:\Emb_programi\Termo\StarDias\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.784,D:\Emb_programi\Termo\StarDias\Unit1.pas=D:\Emb_programi\Termo\StarDias\dopis.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.611,D:\Emb_programi\Termo\StarDias\Unit1.pas=D:\Emb_programi\Termo\StarDias\doloci.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.327,D:\Emb_programi\Termo\StarDias\Unit1.pas=D:\Emb_programi\Termo\StarDias\sporocilo.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.542,=D:\Emb_programi\PTC2\Generic\deklar.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.299,=D:\Emb_programi\Termo\StarDias\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.596,=D:\Emb_programi\Termo\StarDias\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.784,D:\Emb_programi\Termo\StarDias\Unit1.dfm=D:\Emb_programi\Termo\StarDias\dopis.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.327,D:\Emb_programi\Termo\StarDias\Unit1.dfm=D:\Emb_programi\Termo\StarDias\sporocilo.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.054,=D:\Emb_programi\PTC2\Generic\PrijavaSAP.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.611,D:\Emb_programi\Termo\StarDias\Unit1.dfm=D:\Emb_programi\Termo\StarDias\doloci.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.439,D:\Emb_programi\Termo\StarDias\Unit1.dfm=D:\Emb_programi\Termo\StarDias\stanje.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.828,=D:\Emb_programi\Termo\StarDias\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.370,=D:\Emb_programi\Termo\StarDias\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.605,D:\Emb_programi\Termo\StarDias\Unit1.dfm=D:\Emb_programi\Termo\StarDias\sinapro.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.756,=D:\Emb_programi\PTC2\Generic\VpisPrijava.pas</Transaction>
+  </Transactions>
+</BorlandProject>

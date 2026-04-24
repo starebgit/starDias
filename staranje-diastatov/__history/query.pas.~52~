@@ -1,0 +1,273 @@
+unit query;
+
+interface
+
+uses
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, printers,
+  StdCtrls, Forms, DBCtrls, DB, DBGrids, DBTables, Grids, ExtCtrls,
+  Data.Win.ADODB, Dialogs, Clipbrd, Variants;
+
+type
+  TFquery = class(TForm)
+    Query1NALOG: TStringField;
+    Query1KODA: TStringField;
+    Query1POTRDITEV: TStringField;
+    Query1DONOS: TFloatField;
+    DBGrid1: TDBGrid;
+    Panel1: TPanel;
+    DataSource1: TDataSource;
+    Panel2: TPanel;
+    Query1: TQuery;
+    Query1DELMESTO: TStringField;
+    Query1DATUM: TDateField;
+    Query1DOBA: TSmallintField;
+    Query1RAZLIKA: TSmallintField;
+    Query1TIP: TStringField;
+    Query1SKLAD: TStringField;
+    Button1: TButton;
+    Button2: TButton;
+    Query1TK1: TSmallintField;
+    Query1TK2: TSmallintField;
+    Query1TK3: TSmallintField;
+    Query1PEC: TSmallintField;
+    Button3: TButton;
+    ADOQuery1: TADOQuery;
+    ADOQuery1NALOG: TWideStringField;
+    ADOQuery1KODA: TWideStringField;
+    ADOQuery1POTRDITEV: TWideStringField;
+    ADOQuery1DONOS: TFloatField;
+    ADOQuery1DELMESTO: TWideStringField;
+    ADOQuery1DATUM: TDateTimeField;
+    ADOQuery1TIP: TWideStringField;
+    ADOQuery1SKLAD: TWideStringField;
+
+    Panel3: TPanel;
+    Tabela: TStringGrid;
+    Button4: TButton;
+
+    procedure FormCreate(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure KopirajNalogeClick(Sender: TObject);
+  private
+    pnas : string ;
+    dst : TdateTime ;
+  public
+    procedure pokazi(dat : Tdatetime;ix : integer);
+  end;
+
+var
+  Fquery: TFquery;
+
+implementation
+
+{$R *.DFM}
+
+function FInt(const Q: TADOQuery; const FieldName: string): Integer;
+var
+  V: Variant;
+begin
+  V := Q.FieldByName(FieldName).Value;
+  if VarIsNull(V) or VarIsEmpty(V) then
+    Result := 0
+  else
+    Result := Round(VarAsType(V, varDouble)); // handles Smallint/Integer/Float safely
+end;
+
+
+procedure TFquery.FormCreate(Sender: TObject);
+begin
+  //Query1.Open;
+end;
+
+// procedura za prikaz vsebine tabele za en dan
+procedure TFquery.pokazi(dat : Tdatetime;ix : integer);
+  var dr, sx, skl : string ;
+     sum : integer ;
+     ii : Integer ;
+  procedure zapis ;
+  begin
+    tabela.Cells[0,ii] := skl ;
+    Tabela.cells[1,ii] := IntToStr(sum) ;
+  end;
+begin
+  tabela.Cells[0,0] := 'Skladišèe' ;
+  tabela.Cells[1,0] := 'Seštevek' ;
+  dst := dat ;
+  dr := ExtractFilePath(application.ExeName) ;
+  sx := AdoQuery1.ConnectionString ;
+
+  // nastavitev poti za podatkovne tabele
+  AdoQuery1.ConnectionString := sx + dr ;
+  caption := 'Iz peèi na dan ' + datetostr(dat) ;
+  ADOQuery1.SQL.Clear ;
+  case ix of
+    2 : ADOQuery1.SQL.Add('Select * From stara Where ((doba > 1 and datum + doba = :NOD) or (doba=1 and datum + doba + 1 = :NOP)) and (tip = ''X'' or tip = ''U'' ) order by sklad, tip, koda') ;
+   // 2 : ADOQuery1.SQL.Add('Select * From stara Where doba=1 and datum + doba  +1 = :NOD   and (tip = ''X'' or tip = ''U'' ) order by sklad, tip, koda') ;
+    1 : ADOQuery1.SQL.Add('Select * From stara Where ((doba > 1 and datum + doba = :NOD) or (doba=1 and datum + doba + 1 = :NOP))  and (tip = ''Y'') order by sklad, tip, koda') ;
+    3 : ADOQuery1.SQL.Add('Select * From stara Where ((doba > 1 and datum + doba = :NOD) or (doba=1 and datum + doba + 1 = :NOP))  order by  sklad, koda') ;
+  end ;
+
+  case ix of
+    1 : pnas := '100% kontrola' ;
+    2 : pnas := 'Statistièna kontrola';
+    3 : pnas := 'Vse' ;
+  end ;
+  //ADOQuery1.params[0].Asdate := dat ;
+  ADOQuery1.parameters[0].value := dat ;
+  ADOQuery1.parameters[0].name  := 'NOD' ;
+  ADOQuery1.parameters[1].value := dat ;
+  ADOQuery1.parameters[1].name  := 'NOP' ;
+  ADOQuery1.Open ;
+  Adoquery1.First ;
+  sum := 0 ;
+  ii := 1 ;
+  skl := Adoquery1.FieldByName('sklad').asstring ;
+  while not Adoquery1.eof do
+  begin
+    if skl <> Adoquery1.FieldByName('sklad').asstring  then
+    begin
+      zapis  ;
+      sum := 0 ;
+      inc(ii) ;
+    end;
+    sum := sum + Adoquery1.FieldByName('donos').value ;
+    skl := Adoquery1.FieldByName('sklad').asstring ;
+    Adoquery1.Next ;
+  end;
+  Zapis ;
+  Tabela.RowCount := ii +1 ;
+  ADOQuery1.last ;
+  ShowModal ;
+  ADOQuery1.Close ;
+  AdoQuery1.ConnectionString := sx ;
+end ;
+
+// izpis prikazane tabele na papir
+procedure TFquery.Button1Click(Sender: TObject);
+  var   MojaDat : TextFile ;
+        capp,cap1,cap2,uu,sk : string ;
+        cc,ix,c1,i,kk,sum,don : integer;
+begin
+   AssignPrn(MojaDat) ;
+   Rewrite(MojaDat) ;
+
+   capp := 'K O N T R O L N I     L I S T / ' + dateToStr(dst);
+   cap1 :=  'E T A   Cerkno' ;
+   cap2 := 'Datum : ' + DateToStr(date) + '  ' + TimeTostr(Time) ;
+   Printer.Canvas.Font.Name := 'Courier New' ;
+   Printer.Canvas.Font.Size := 12 ;
+   cc := printer.PageWidth div Printer.Canvas.TextWidth('P') ;
+   c1 := cc - length(cap1) - length(cap2) ;
+   Writeln (MojaDat,cap1 + StringofChar(' ',c1)+Cap2) ;
+   Writeln (MojaDat,'DE Termoregulator') ;
+
+   Printer.Canvas.Font.Size := 16 ;
+   cc := printer.PageWidth div Printer.Canvas.TextWidth('P') ;
+   ix := (cc - length(Capp)) div 2 ;
+   Writeln(MojaDat,StringofChar(' ',ix)+Capp) ;
+
+   Printer.Canvas.Font.Size := 12 ;
+   Writeln(MojaDat,'') ;
+   Writeln(MojaDat,pnas) ;
+   Writeln(MojaDat,'') ;
+
+   Writeln(MojaDat,Format('%10s%18s%8s%4s%13s%12s%12s',['Nalog','Material',
+                            'Donos','Peè','Del. mesto', 'Datum','TK1/TK2/TK3'])) ;
+
+   Writeln(MojaDat,'') ;
+
+   // izpis posameznih vrstic
+   ADOQuery1.First ;
+   sk := ADOQuery1sklad.value ;
+   uu := ADOQuery1tip.value ;
+   kk := 1 ;
+   sum := 0 ;
+   while not ADOQuery1.eof do
+   begin
+     if sk <> ADOQuery1sklad.value then
+     begin
+        Writeln(MojaDat,'   --------------------------------------------------------------------------') ;
+        Writeln(MojaDat,Format('%25s%9s',['   Skupaj za skaldišèe '+sk,IntTostr(sum)]))  ;
+        Writeln(MojaDat) ;
+        Writeln(MojaDat) ;
+        kk := kk+2 ;
+        sk := ADOQuery1sklad.value ;
+        sum := 0 ;
+     end ;
+     if uu <> ADOQuery1tip.value then
+     begin
+        if sum > 0 then
+        begin
+          Writeln(MojaDat)  ;
+          Writeln(MojaDat) ;
+          kk := kk+2 ;
+        end;
+        uu := ADOQuery1tip.value
+     end ;
+     sum := sum + round(ADOQuery1donos.value) ;
+     if kk = 56 then Writeln(MojaDat) ;
+     Writeln(MojaDat,Format('%10s%18s%8s%4s%13s%12s%12s',[ADOQuery1nalog.value,ADOQuery1koda.value,
+                       IntToStr(Round(ADOQuery1donos.Value)),
+                        IntToStr(FInt(ADOQuery1,'PEC')),
+                        ADOQuery1delmesto.Value,
+                        DateToStr(ADOQuery1datum.Value),
+                        IntToStr(FInt(ADOQuery1,'TK1')) + '/' + IntToStr(FInt(ADOQuery1,'TK2')) + '/' + IntToStr(FInt(ADOQuery1,'TK3'))]));
+     inc(kk) ;
+     ADOQuery1.Next ;
+   end ;
+   Writeln(MojaDat,'   --------------------------------------------------------------------------') ;
+   Writeln(MojaDat,Format('%25s%9s',['   Skupaj za skaldišèe '+sk,IntTostr(sum)]))  ;
+   System.CloseFile(MojaDat) ;
+end;
+
+procedure TFquery.Button3Click(Sender: TObject);
+  var Mojadat : textfile ;
+      kk : integer ;
+      uu : string ;
+begin
+  AssignFile(Mojadat,'stat.txt') ;
+  rewrite(Mojadat) ;
+  ADOQuery1.first ;
+  uu := ADOQuery1tip.value ;
+  while not ADOQuery1.eof do
+   begin
+     if uu <> ADOQuery1tip.value then
+     begin
+        Writeln(MojaDat)  ;
+        Writeln(MojaDat) ;
+        kk := kk+2 ;
+        uu := ADOQuery1tip.value
+     end ;
+     if kk = 56 then Writeln(MojaDat) ;
+     Writeln(MojaDat,Format('%10s%18s%8s%4s%13s%12s%12s',[ADOQuery1nalog.value,ADOQuery1koda.value,
+                       IntToStr(Round(ADOQuery1donos.Value)),
+IntToStr(FInt(ADOQuery1,'PEC')),
+ADOQuery1delmesto.Value,
+DateToStr(ADOQuery1datum.Value),
+IntToStr(FInt(ADOQuery1,'TK1')) + '/' + IntToStr(FInt(ADOQuery1,'TK2')) + '/' + IntToStr(FInt(ADOQuery1,'TK3'))])) ;
+
+     inc(kk) ;
+     ADOQuery1.Next ;
+   end ;
+   CloseFile(Mojadat) ;
+end;
+
+procedure TFquery.KopirajNalogeClick(Sender: TObject);
+var
+  ClipboardText: string;
+begin
+  ClipboardText := '';  // Initialize
+
+  ADOQuery1.First;  // Move to the first record
+  while not ADOQuery1.Eof do
+  begin
+    ClipboardText := ClipboardText + ADOQuery1.FieldByName('NALOG').AsString + sLineBreak;
+    ADOQuery1.Next;
+  end;
+
+  Clipboard.AsText := ClipboardText;  // Copy to clipboard
+  ShowMessage('Stolpec Nalogov je bil kopiran v odložišèe. Prilepite ga s Ctrl + V.');
+end;
+
+end.

@@ -1,0 +1,35 @@
+unit stanje;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls;
+
+type
+  TFstanje = class(TForm)
+    Memo1: TMemo;
+  private
+    { Private declarations }
+  public
+    Procedure Vpis(str1,str2,str3: TstringList) ;
+  end;
+
+var
+  Fstanje: TFstanje;
+
+implementation
+
+{$R *.dfm}
+
+
+Procedure TFstanje.Vpis(str1,str2,str3: TstringList) ;
+  var i : integer ;
+begin
+  Memo1.Clear ;
+  for i := 0 to str1.Count-1 do
+    memo1.Lines.Add(str1[i]) ;
+  ShowModal ;
+end;
+
+end.

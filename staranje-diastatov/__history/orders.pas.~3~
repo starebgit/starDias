@@ -1,0 +1,245 @@
+unit orders;
+
+interface
+
+uses
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, Dialogs,
+  StdCtrls, Forms, DBCtrls, DB, DBGrids, DBTables, Grids, ExtCtrls,
+  SAPFunctionsOCX_TLB, OleCtrls, SAPLogonCtrl_TLB;
+
+type
+  TForders = class(TForm)
+    Table1PORDER: TStringField;
+    Table1MATNR: TStringField;
+    DBGrid1: TDBGrid;
+    Panel1: TPanel;
+    DataSource1: TDataSource;
+    Panel2: TPanel;
+    Table1: TTable;
+    Obnovi: TButton;
+    SAPLogonControl1: TSAPLogonControl;
+    SAPFunctions1: TSAPFunctions;
+    Table1STATUS: TStringField;
+    Status: TButton;
+    Posamezno: TButton;
+    Filter: TButton;
+    Sort: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure ObnoviClick(Sender: TObject);
+    procedure StatusClick(Sender: TObject);
+    procedure PosameznoClick(Sender: TObject);
+    procedure FilterClick(Sender: TObject);
+    procedure SortClick(Sender: TObject);
+  private
+    Function GetStatus(pord : string) : string ;
+  public
+    procedure Zapis(s1,s2 : string) ;
+    Procedure pokazi ;
+    Procedure GetList(listkod: TstringList) ;
+  end;
+
+var
+  Forders: TForders;
+
+implementation
+
+uses tabela, casiSt;
+
+{$R *.DFM}
+
+procedure TForders.FormCreate(Sender: TObject);
+begin
+  //Table1.Open;
+end;
+
+procedure TForders.Zapis(s1,s2 : string) ;
+begin
+  Table1.Appendrecord([s1,s2]) ;
+end ;
+
+Procedure TForders.pokazi ;
+begin
+  Table1.Open ;
+  ShowModal ;
+  Table1.Close ;
+end ;
+
+procedure TForders.ObnoviClick(Sender: TObject);
+ var kk : integer;
+      connection : variant ;
+      tab,funct : variant ;
+      po : string[12] ;
+      i : integer ;
+      ss,kd,ks : string ;
+      plant : string ;
+begin
+  If table1.recordCount > 0 then
+  begin
+    Table1.last ;
+    po := table1porder.value
+  end else
+    po := '000003912000' ;
+  ftabela.prijava(Connection) ;
+  if trim(connection.user) = 'rsg_rfc_1' then plant := '0401' else plant := '1061' ;
+  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
+  begin
+    // preberem tabelo potrditev za doloèen datum
+    SAPFunctions1.Connection := Idispatch(Connection);
+    funct := sapFunctions1.add('BAPI_PRODORD_GET_LIST');
+
+    funct.Tables.Item('PRODPLANT_RANGE').AppendRow.Value('SIGN'):='I';
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,2) :='EQ';
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,3) := plant;
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,4) := plant;
+
+    funct.Tables.Item('ORDER_NUMBER_RANGE').AppendRow.Value('SIGN'):='I';
+    funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,2) :='EQ';
+    funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,3) := po;
+    funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,4) := '000004919340';
+    // funct.Tables.Item('MATERIAL_RANGE').AppendRow.Value('HIGH'):='000000559184151000';
+
+    if not funct.call then   // èe ni v redu
+        // on error show message
+        showMessage(funct.exception)
+    else
+    begin
+       tab := funct.TABLES.item('ORDER_HEADER');
+       kk := Tab.rowCount ;
+       for i := 1 to kk do
+       begin
+         ss := tab.value(i,41) ;
+         if (pos('DIASTAT',ss) > 0) and (pos('NENAPOLNJEN',ss) = 0) then
+         begin
+           kd := tab.value(i,5) ;
+           if kd[6] = '0' then
+             ks := copy(kd,5,4) + '.' + copy(kd,9,3) + '.'  +  copy(kd,12,3)
+           else begin
+             ks := copy(kd,5,3) + '.' + copy(kd,8,4) + '.'  +  copy(kd,12,3) ;
+             kd := FcasiSt.stark(ks) ;
+             if kd <> '' then ks := kd ;
+           end ;  
+           Zapis(tab.value(i,1),ks) ;
+         end ;
+       end ;
+    end ;
+  end ;
+  Connection.LogOff;
+end;
+
+
+procedure TForders.StatusClick(Sender: TObject);
+  var ss, st : string ;
+begin
+  Table1.First ;
+  While not Table1.eof do
+  begin
+    ss := Table1status.value ;
+    if ss <> 'C' then
+    begin
+      st := GetStatus(table1porder.value) ;
+      Table1.edit ;
+      Table1status.value := st ;
+      Table1.Post ;
+   end ;
+   Table1.Next
+  end;
+end;
+
+
+Function TFOrders.GetStatus(pord : string) : string ;
+ var kk : integer;
+      connection : variant ;
+      tabc,tabb,funct1 : variant ;
+      i : integer ;
+      s1,s2,sx,rr : string ;
+begin
+  ftabela.prijava(Connection) ;
+  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
+  begin
+   SAPFunctions1.Connection := Idispatch(Connection);
+   funct1 := sapFunctions1.add('BAPI_PRODORD_GET_DETAIL');
+   funct1.exports('NUMBER').value := pord ;
+   funct1.exports('ORDER_OBJECTS').value(1) := 'X' ;
+   funct1.exports('ORDER_OBJECTS').value(4) := 'X' ;
+   if not funct1.call then           // èe ni bilo v redu
+       showMessage(funct1.exception) ;
+
+   // potrebujem podatke iz dveh tabel
+   tabc := 0 ;
+   tabb := funct1.TABLES.item('HEADER');
+   tabc := funct1.TABLES.item('OPERATION');
+   kk := Tabc.rowCount ;
+   rr := ' ' ;
+   for i := 1 to kk do
+   begin
+     if tabc.value(i,3) = '000000' then
+     begin
+     sx := copy(tabc.value(i,43),1,4) ;
+     s1 := copy(tabc.value(i,45),1,4)  ;
+ //    SHowMessage(s1+'/'+sx) ;
+     if (sx = '4334') or (sx = '4452') then
+     begin
+       If (s2 <> 'LANS') and (s1 = 'LANS') then
+       begin
+         If Ftabela.checkPO(pord) then rr := 'C' else rr := 'B' ;
+       end else
+       begin
+         if s2 = 'LANS' then rr := 'A' ;
+         if s1 <> 'LANS' then rr := 'C'
+       end ;
+     end ;
+     s2 := s1 ;
+     end;
+   end ;
+   result := rr ;
+   Funct1.Tables.Item('header').deleterow ;
+   for i := 1 to kk do Funct1.Tables.Item('operation').deleterow ;
+   Connection.LogOff;
+  end ;
+end ;
+
+
+procedure TForders.PosameznoClick(Sender: TObject);
+  var st : string ;
+begin
+  st := GetStatus(table1porder.value) ;
+  Table1.edit ;
+  Table1status.value := st ;
+  Table1.Post ;
+end;
+
+procedure TForders.FilterClick(Sender: TObject);
+begin
+  If Table1.filtered then
+    Table1.filtered := false
+  else
+  begin
+    Table1.filtered := true ;
+    Table1.filter := 'status = ' + '''B''' ;
+  end ;
+end;
+
+Procedure TForders.GetList(listkod: TstringList) ;
+begin
+  Table1.Indexname := 'matnr' ;
+  Table1.Open ;
+  Table1.filtered := true ;
+  Table1.filter := 'status = ' + '''B''' ;
+  Table1.First ;
+  while Not table1.eof do
+  begin
+    ListKod.Add(table1matnr.value) ;
+    table1.next ;
+  end ;
+  Table1.Filtered := false ;
+  Table1.Close ;
+end ;
+
+
+procedure TForders.SortClick(Sender: TObject);
+begin
+  if Table1.Indexname = 'matnr' then Table1.Indexname := 'porder'
+                                else Table1.Indexname := 'matnr' ;
+end;
+
+end.

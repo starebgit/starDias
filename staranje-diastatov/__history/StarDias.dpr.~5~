@@ -1,0 +1,39 @@
+program StarDias;
+
+uses
+  Forms,
+  start in 'start.pas' {Fstart},
+  tabela in 'tabela.pas' {Ftabela},
+  casiSt in 'casiSt.pas' {FcasiSt},
+  query in 'query.pas' {Fquery},
+  vseb in 'vseb.pas' {Fvseb},
+  vpis in 'vpis.pas' {Fvpis},
+  peci in 'peci.pas' {Fpeci},
+  orders in 'orders.pas' {Forders},
+  xkarta in 'xkarta.pas' {Fxkarta},
+  doba in 'doba.pas' {Fdoba},
+  stanje in 'stanje.pas' {Fstanje},
+  doloci in 'doloci.pas' {Fdoloci},
+  sporocilo in 'sporocilo.pas' {Fsporocilo},
+  dopis in 'dopis.pas' {Fdopis};
+
+{$R *.RES}
+
+begin
+  Application.Initialize;
+  Application.CreateForm(TFstart, Fstart);
+  Application.CreateForm(TFtabela, Ftabela);
+  Application.CreateForm(TFcasiSt, FcasiSt);
+  Application.CreateForm(TFquery, Fquery);
+  Application.CreateForm(TFvseb, Fvseb);
+  Application.CreateForm(TFvpis, Fvpis);
+  Application.CreateForm(TFpeci, Fpeci);
+  Application.CreateForm(TForders, Forders);
+  Application.CreateForm(TFxkarta, Fxkarta);
+  Application.CreateForm(TFdoba, Fdoba);
+  Application.CreateForm(TFstanje, Fstanje);
+  Application.CreateForm(TFdoloci, Fdoloci);
+  Application.CreateForm(TFsporocilo, Fsporocilo);
+  Application.CreateForm(TFdopis, Fdopis);
+  Application.Run;
+end.

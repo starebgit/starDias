@@ -1,0 +1,43 @@
+unit dopis;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, vpis,peci;
+
+type
+  TFdopis = class(TForm)
+    Panel1: TPanel;
+    Panel2: TPanel;
+    ListBox1: TListBox;
+  private
+    { Private declarations }
+  public
+    Procedure izbor(postav : vpeci) ;
+  end;
+
+var
+  Fdopis: TFdopis;
+
+implementation
+
+{$R *.dfm}
+
+
+Procedure TFdopis.izbor(postav : vpeci) ;
+  var Listpec : TstringList ;
+      ii : integer ;
+begin
+  Listpec := TstringList.Create ;
+  FPeci.GetList(listpec) ;
+  for ii  := 0 to listpec.count-1 do
+    listpec[ii] := Listpec[ii] + '--' + IntTostr(postav[ii+1]) ;
+
+  {Forders.GetList(listkod) ;
+  ComboBox1.items := ListKod ;  }
+  ListBox1.items := Listpec ;
+  Panel1.Color := $02ffffc0 ;
+end ;
+
+end.

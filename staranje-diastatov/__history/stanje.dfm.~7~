@@ -1,0 +1,124 @@
+object Fstanje: TFstanje
+  Left = 0
+  Top = 0
+  Caption = 'Fstanje'
+  ClientHeight = 634
+  ClientWidth = 1070
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'Tahoma'
+  Font.Style = []
+  OldCreateOrder = False
+  Position = poScreenCenter
+  PixelsPerInch = 96
+  TextHeight = 13
+  object Panel1: TPanel
+    Left = 0
+    Top = 0
+    Width = 1070
+    Height = 65
+    Align = alTop
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+    TabOrder = 0
+    object Label4: TLabel
+      Left = 32
+      Top = 24
+      Width = 42
+      Height = 16
+      Caption = 'Label4'
+    end
+  end
+  object Panel2: TPanel
+    Left = 0
+    Top = 65
+    Width = 1070
+    Height = 569
+    Align = alClient
+    Color = clMedGray
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -21
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentBackground = False
+    ParentFont = False
+    TabOrder = 1
+    ExplicitLeft = 88
+    ExplicitTop = 128
+    ExplicitWidth = 185
+    ExplicitHeight = 41
+    object Label1: TLabel
+      Left = 32
+      Top = 6
+      Width = 62
+      Height = 25
+      Caption = 'V pe'#269'i'
+    end
+    object Label2: TLabel
+      Left = 384
+      Top = 6
+      Width = 104
+      Height = 25
+      Caption = 'Na izhodu'
+    end
+    object Label3: TLabel
+      Left = 736
+      Top = 6
+      Width = 110
+      Height = 25
+      Caption = 'Nepoznani'
+    end
+    object Memo1: TMemo
+      Left = 56
+      Top = 37
+      Width = 241
+      Height = 580
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      Lines.Strings = (
+        'Memo1')
+      ParentFont = False
+      TabOrder = 0
+    end
+    object Memo2: TMemo
+      Left = 416
+      Top = 37
+      Width = 241
+      Height = 580
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      Lines.Strings = (
+        'Memo2')
+      ParentFont = False
+      TabOrder = 1
+    end
+    object Memo3: TMemo
+      Left = 768
+      Top = 37
+      Width = 185
+      Height = 148
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      Lines.Strings = (
+        'Memo3')
+      ParentFont = False
+      TabOrder = 2
+    end
+  end
+end

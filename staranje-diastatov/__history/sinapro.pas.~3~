@@ -1,0 +1,53 @@
+unit sinapro;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Data.DB, Data.Win.ADODB;
+
+type
+  TFsinapro = class(TForm)
+    ADOQuery1: TADOQuery;
+  private
+    { Private declarations }
+  public
+   function getAvtomat(delnal : string; kol : integer; dd : TdateTime) : integer ;
+  end;
+
+var
+  Fsinapro: TFsinapro;
+
+implementation
+
+{$R *.dfm}
+
+
+function TfSinapro.getAvtomat(delnal : string; kol : integer; dd : TdateTime) : integer ;
+  var stroj : string ;
+      kl_dobri,rz : Integer ;
+begin
+   AdoQuery1.SQL.Clear ;
+   AdoQuery1.sql.Add('Select * from t_del_proiz where (Cas_datum = :DAT) and (st_delNal_ID = :NAL)') ;
+   AdoQuery1.Parameters[0].value := dd ;
+   AdoQuery1.Parameters[0].name := 'DAT' ;
+   AdoQuery1.Parameters[1].value := delnal ;
+   AdoQuery1.Parameters[1].name := 'NAL' ;
+   AdoQuery1.Open ;
+   rz := 0 ;
+   while Adoquery1.eof do
+   begin
+     stroj := Adoquery1.FieldByName('st_stroj_ID').value ;
+     kl_dobri := Adoquery1.FieldByName('kol_kosi_dobri').value ;
+     if (kl_dobri = kol) and (stroj = '408400100')   then rz := 1 ;
+     if (kl_dobri = kol) and (stroj = '408400200')   then rz := 2 ;
+     if (kl_dobri = kol) and (stroj = '408400300')   then rz := 3 ;
+     if (kl_dobri = kol) and (stroj = '408400400')   then rz := 4 ;
+     if (kl_dobri = kol) and (stroj = '408400235')   then rz := 5 ;
+     if (kl_dobri = kol) and (stroj = '408400237')   then rz := 6 ;
+     Adoquery1.Next
+   end;
+   result := rz ;
+end;
+
+end.

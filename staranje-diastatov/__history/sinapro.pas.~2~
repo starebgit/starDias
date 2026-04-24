@@ -1,0 +1,37 @@
+unit sinapro;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Data.DB, Data.Win.ADODB;
+
+type
+  TFsinapro = class(TForm)
+    ADOQuery1: TADOQuery;
+  private
+    { Private declarations }
+  public
+   function getAvtomat(delnal : string; kol : integer; dd : TdateTime) : integer ;
+  end;
+
+var
+  Fsinapro: TFsinapro;
+
+implementation
+
+{$R *.dfm}
+
+
+function TfSinapro.getAvtomat(delnal : string; kol : integer; dd : TdateTime) : integer ;
+begin
+   AdoQuery1.SQL.Clear ;
+   AdoQuery1.sql.Add('Select * from t_del_proiz where (Cas_datum = :DAT) and (st_delNal_ID = :NAL)') ;
+   AdoQuery1.Parameters[0].value := dd ;
+   AdoQuery1.Parameters[0].name := 'DAT' ;
+   AdoQuery1.Parameters[1].value := delnal ;
+   AdoQuery1.Parameters[1].name := 'NAL' ;
+   AdoQuery1.Open ;
+end;
+
+end.

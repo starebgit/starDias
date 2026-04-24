@@ -1,0 +1,264 @@
+unit vpis;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  StdCtrls, ExtCtrls, Vcl.ComCtrls;
+
+type
+  vpeci = array[1..20] of longint ;
+  TFvpis = class(TForm)
+    Button1: TButton;
+    Button2: TButton;
+    Panel1: TPanel;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
+    Label7: TLabel;
+    ComboBox1: TComboBox;
+    ListBox1: TListBox;
+    Edit2: TEdit;
+    Memo1: TMemo;
+    Edit3: TEdit;
+    Edit4: TEdit;
+    edit1: TDateTimePicker;
+    Label8: TLabel;
+    Edit5: TEdit;
+    Label9: TLabel;
+    Edit6: TEdit;
+    procedure ComboBox1Exit(Sender: TObject);
+    procedure ComboBox1Enter(Sender: TObject);
+    procedure Edit3Change(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure FormActivate(Sender: TObject);
+  private
+    procedure Izsapa(stn : string);
+    procedure predlog ;
+  public
+    Procedure Zapis(postav : vpeci) ;
+  end;
+
+var
+  Fvpis: TFvpis;
+
+implementation
+
+uses peci, casiSt, orders, tabela, sporocilo, vseb;
+
+{$R *.DFM}
+
+Procedure TFvpis.Zapis(postav : vpeci) ;
+  var Listpec,ListKod : TstringList ;
+      ii : Integer ;
+begin
+  Listpec := TstringList.Create ;
+  ListKod := TstringList.Create ;
+  FPeci.GetList(listpec) ;
+  for ii  := 0 to listpec.count-1 do
+    listpec[ii] := Listpec[ii] + '--' + IntTostr(postav[ii+1]) ;
+
+  {Forders.GetList(listkod) ;
+  ComboBox1.items := ListKod ;  }
+  ListBox1.items := Listpec ;
+  Panel1.Color := $02ffffc0 ;
+  combobox1.text := '' ;
+  edit2.text := '' ;
+  edit1.date := date;
+
+  ShowModal ;
+  if modalResult = mrOK then
+  {begin
+    kd := ComboBox1.text ;
+    pt := copy(edit3.Text,3,10);
+    kl := StrToIntDef(edit2.text,0) ;
+    dt := StrToDate(DateTostr(edit1.date)) ;
+    ii := ListBox1.itemIndex ;
+    if ii >= 0 then
+      pc := StrToInt(copy(Listbox1.Items[ii],1,2))
+    else
+    begin
+      kd := '' ;
+      ShowMessage('Peè ni bila izbrana')
+    end ;
+  end else
+    kd := '' ; }
+  Listpec.Free ;
+  ListKod.free ;
+end ;
+
+
+procedure TFvpis.ComboBox1Exit(Sender: TObject);
+  var kd : string ;
+      cs,t1,t2,t3,tt,i : integer ;
+      pk : string ;
+      listpec : tstringList ;
+begin
+  Predlog
+end;
+
+procedure TFvpis.predlog ;
+ var kd : string ;
+      cs,t1,t2,t3,tt,i : integer ;
+      pk : string ;
+      listpec : tstringList ;
+begin
+   kd := combobox1.text ;
+   if kd = '' then exit ;
+
+   FcasiSt.Najdi(kd,cs,t1,t2,t3,tt,pk) ;
+   if cs = 0 then
+     ShowMessage('Te kode ni v bazi')
+   else
+   begin
+     edit5.Text := IntTostr(24*cs) ;
+     edit6.Text := IntTostr(tt) ;
+     if cs = 5 then cs := 4 ;
+     listpec := TstringList.create ;
+     Fpeci.Getpec(cs,tt,pk,Listpec) ;
+     for i := 0 to listpec.count -1 do
+       Memo1.lines.add(listpec[i]) ;
+     Listpec.free
+   end
+end;
+
+
+procedure TFvpis.Edit3Change(Sender: TObject);
+begin
+  IzSapa('') ;
+  predlog
+end;
+
+procedure TFvpis.FormActivate(Sender: TObject);
+begin
+   //edit3.SetFocus ;
+   ComboBox1.SetFocus ;
+end;
+
+// shranim
+procedure TFvpis.Button1Click(Sender: TObject);
+   var kd,pt : string;
+       dt : TDateTime;
+       pc,kl,ii : integer ;
+begin
+  kd := ComboBox1.text ;
+  pt := copy(edit3.Text,3,10);
+  kl := StrToIntDef(edit2.text,0) ;
+  dt := StrToDate(DateTostr(edit1.date)) ;
+  ii := ListBox1.itemIndex ;
+  if ii >= 0 then
+    pc := StrToInt(copy(Listbox1.Items[ii],1,2))
+  else
+  begin
+    kd := '' ;
+    ShowMessage('Peè ni bila izbrana')
+  end ;
+  comboBox1.Text := '' ;
+  edit3.Text := '' ;
+  edit2.Text := '' ;
+  edit4.Text := '' ;
+  ListBox1.itemIndex := -1 ;
+  //edit3.SetFocus ;
+  ComboBox1.SetFocus ;
+  Fvseb.NZapis(kd,pt,dt,kl,pc) ;
+end;
+
+procedure TFvpis.ComboBox1Enter(Sender: TObject);
+begin
+  Memo1.Lines.Clear ;
+end;
+
+
+procedure TFvpis.Izsapa(stn : string);
+  var funct1,funct2,connection : variant ;
+      conf,stnal,conf_c,mat,mt,mtt : string ;
+      vredu : boolean ;
+      tabc,tabs : variant ;
+      j,m,mm,st_opr,jj : integer ;
+      yie,yield,tt,scr,scrap,razl,skp : longint ;
+      fdate : TdateTime ;
+      err,ssx : string ;
+      ttx : longint ;
+
+begin
+  if stn = '' then
+  begin
+    conf := edit3.Text ;
+    if length(conf) < 12 then  exit ;
+    conf := copy(conf,3,10) ;
+  end;
+  Screen.Cursor := crHourGlass ;
+
+  FSporocilo.Show ;
+  Fsporocilo.Label1.Caption := 'Išèem  kodo';
+  FSporocilo.Update ;
+
+  tt := GettickCount ;
+  ftabela.Prijava(connection) ;
+ // Showmessage(conf) ;
+  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
+  begin
+    if stn = '' then
+    begin
+      ftabela.SAPFunctions1.Connection := Idispatch(Connection);
+      Funct1 := ftabela.SAPFunctions1.add('BAPI_PRODORDCONF_GETDETAIL');
+      Funct1.exports('CONFIRMATION').value := conf ;
+      funct1.exports('CONFIRMATIONCOUNTER').value := '0001' ;
+      Funct1.call ;
+      err := funct1.imports('RETURN').value(1);
+      if err = 'E' then
+      begin
+        Showmessage(funct1.imports('RETURN').value(4)) ;
+        //edit1.Text := '' ;
+        Screen.Cursor := crDefault ;
+        exit ;
+      end;
+      stnal := funct1.imports('CONF_DETAIL').value(3) ;
+    end else
+    begin
+      while length(stn) < 12 do
+      begin
+        stn := '0' + stn
+      end;
+      stnal := stn ;
+    end;
+
+    Ftabela.GetProdDetail(connection,stnal, tabc, vredu,mat) ;
+    mt := Ftabela.KodaConv(connection,mat,'O') ;
+    mtt := copy(mt,1,12) ;
+    mtt[1] := '0' ;
+    mtt[2] := '0' ;
+    ComboBox1.text := mtt ;
+    st_opr := tabc.rowCount ;
+
+   FSporocilo.Show ;
+  Fsporocilo.Label1.Caption := 'Išèem  kolièino';
+  FSporocilo.Update ;
+   skp := 0 ;
+    jj := 1 ;
+    for j := 1 to st_opr do       // po vseh operacijah
+    begin
+      ssx := tabc.value(j,43) ;
+      if (ssx = '4334-401') or (ssx = '4452-401') or (ssx = '4334-427') then  ;
+      begin
+
+        edit2.text := IntTostr(round(Tabc.value(j,25))) ;     // kolièina
+
+      //  conf := Tabc.value(j,4) ;
+        Ftabela.getDonos(connection,stnal,conf,yield,scrap) ;
+        edit4.text := IntTostr(yield) ;
+      end;
+    end ;
+    for j := 1 to tabc.rowCount do tabc.DeleteRow ;
+  end;
+  FSporocilo.Close ;
+  //edit1.Text := '' ;
+  Screen.Cursor := crDefault ;
+ // Showmessage(intToStr(GettickCount -tt)) ;
+end;
+
+
+end.

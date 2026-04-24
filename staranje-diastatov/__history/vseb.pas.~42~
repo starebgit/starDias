@@ -1,0 +1,572 @@
+unit vseb;
+
+interface
+
+uses
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, Dialogs,
+  StdCtrls, Forms, DBCtrls, DB, DBGrids, DBTables, Grids, ExtCtrls, Menus,
+  OleCtrls, SAPFunctionsOCX_TLB, SAPLogonCtrl_TLB, ComObj, variants, vpis,pomoc;
+
+type
+  danPec = record
+    datum : TdateTime ;
+    klDia : longint ;
+  end ;
+  TFvseb = class(TForm)
+    Table1KODA: TStringField;
+    Table1DATUM: TDateField;
+    Table1KOLIC: TSmallintField;
+    Table1PEC: TSmallintField;
+    Table1STATUS: TSmallintField;
+    DBGrid1: TDBGrid;
+    Panel1: TPanel;
+    DataSource1: TDataSource;
+    Panel2: TPanel;
+    Table1: TTable;
+    Button1: TButton;
+    Button2: TButton;
+    Button3: TButton;
+    MainMenu1: TMainMenu;
+    Uredi1: TMenuItem;
+    Filter1: TMenuItem;
+    Ukazi1: TMenuItem;
+    Posodobistatus1: TMenuItem;
+    Vpis1: TMenuItem;
+    Brii1: TMenuItem;
+    Aktualnizapadli1: TMenuItem;
+    Aktualni1: TMenuItem;
+    Zapadli1: TMenuItem;
+    Vsi1: TMenuItem;
+    Samozaenope1: TMenuItem;
+    Sortiranje1: TMenuItem;
+    Datum1: TMenuItem;
+    Koda1: TMenuItem;
+    Pritej1: TMenuItem;
+    Listanalogov1: TMenuItem;
+    Trenutnostanje1: TMenuItem;
+    Zasedenost1: TMenuItem;
+    Preverjnajeravnosti1: TMenuItem;
+    Popraviravnost1: TMenuItem;
+    Koliine1: TMenuItem;
+    ZasedenostExcel1: TMenuItem;
+    Button5: TButton;
+    Table1PEC1: TSmallintField;
+    Button4: TButton;
+    Table1IZMENA: TSmallintField;
+    procedure FormCreate(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    //procedure Button5Click(Sender: TObject);
+    // procedure brisanje(Sender: TObject);
+    procedure Posodobistatus1Click(Sender: TObject);
+    procedure Aktualnizapadli1Click(Sender: TObject);
+    procedure Aktualni1Click(Sender: TObject);
+    procedure Zapadli1Click(Sender: TObject);
+    procedure Vsi1Click(Sender: TObject);
+    procedure Samozaenope1Click(Sender: TObject);
+    procedure Datum1Click(Sender: TObject);
+    procedure Koda1Click(Sender: TObject);
+    procedure Pritej1Click(Sender: TObject);
+    procedure Listanalogov1Click(Sender: TObject);
+    procedure Trenutnostanje1Click(Sender: TObject);
+    procedure Zasedenost1Click(Sender: TObject);
+    procedure Preverjnajeravnosti1Click(Sender: TObject);
+    procedure Popraviravnost1Click(Sender: TObject);
+    procedure Koliine1Click(Sender: TObject);
+    procedure ZasedenostExcel1Click(Sender: TObject);
+    procedure Brii1Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+//    procedure Brii1Click(Sender: TObject);
+  private
+    procedure Posodobi(var postav : vpeci) ;
+   // procedure brisanje(Sender: TObject);
+  public
+
+    Procedure Pokazi ;
+    Procedure Obnovi ;
+    function getpec(kd : string; dd : TdateTime): Integer ;
+    procedure  NZapis(kd,pt: string; dt: TdateTime; kl,pc,pc1,izm : integer) ;
+  end;
+
+var
+  Fvseb: TFvseb;
+
+implementation
+
+uses peci, casiSt, tabela, orders, xkarta, doba, stanje, doloci, dopis;
+
+{$R *.DFM}
+
+procedure TFvseb.FormCreate(Sender: TObject);
+   var pt : string ;
+begin
+  //Table1.Open;
+  pt := application.exename ;
+  table1.DatabaseName := ExtractFileDir(pt) ;
+end;
+
+
+Procedure TFVseb.Pokazi ;
+begin
+  Panel1.Color := $02ff88ff ;
+ // Table1.IndexName := 'datum' ;
+  Table1.Open ;
+  Table1.last ;
+  Table1.filtered := true ;
+  Table1.filter := '(status = 0 or status = 1)' ;
+  Table1.last ;
+  ShowModal ;
+  Table1.filter := '' ;
+  Table1.Close ;
+end ;
+
+// vpis novega zapisa
+procedure TFvseb.Button1Click(Sender: TObject);
+  var postav : vpeci ;
+begin
+  posodobi(postav) ;
+ // FVpis.zapis(kd,pt,dt,pc,kl) ;
+  FVpis.zapis(postav) ;
+  {if kd <> '' then
+    //Table1.AppendRecord([kd,pt,dt,kl,pc,0]) ;
+    Table1.AppendRecord([kd,dt,kl,pc,0]) ; }
+end;
+
+procedure  TFvseb.NZapis(kd,pt: string; dt: TdateTime; kl,pc,pc1,izm : integer) ;
+begin
+  Table1.AppendRecord([kd,dt,kl,pc,pc1,0,izm]) ;
+end;
+
+procedure TFvseb.Button2Click(Sender: TObject);
+begin
+  Fpeci.Pregled ;
+end;
+
+
+procedure TFvseb.Button4Click(Sender: TObject);
+  var postav : vpeci ;
+      pc : integer ;
+      bk : TBookmark ;
+begin
+  bk := table1.getBookmark ;
+  posodobi(postav) ;
+  Table1.GotoBookmark(bk) ;
+  pc := Fdopis.izbor(postav) ;
+  if pc > 0 then
+  begin
+    Table1.edit ;
+   // Table1pec.value := 0 ;
+    Table1pec1.value := pc ;
+    Table1.post ;
+  end;
+end;
+
+procedure TFvseb.Button5Click(Sender: TObject);
+  var dd : TdateTime ;
+      pc : integer ;
+      dni,t1,t2,t3,ss,tt : integer ;
+      pk : string ;
+      str1,str2,str3 : TstringList ;
+begin
+  fdoloci.Izbor(dd,pc) ;
+  if pc = 0 then exit ;
+
+  str1 := TstringList.Create ;
+  str2 := TstringList.Create ;
+  str3 := TstringList.Create ;
+//  Table1.SetRange([dd-5],[dd]) ;
+  Table1.First ;
+  while Not table1.eof do
+  begin
+    if table1pec.Value = pc then
+    begin
+      FcasiSt.najdi_00(Table1Koda.value,dni,t1,t2,t3,tt,pk)  ;
+      if dni > 0 then
+      begin
+        if table1datum.Value + dni > dd then str1.Add(Table1koda.Value) ;
+        if table1datum.Value + dni = dd then str2.Add(Table1koda.Value)
+      end else str3.Add(Table1koda.Value)
+    end;
+    Table1.Next ;
+  end;
+  Fstanje.Vpis(dd,pc,str1,str2,str3) ;
+  str1.Free ;
+  str2.Free ;
+  str3.Free ;
+end;
+
+Procedure TfVseb.Obnovi ;
+  var cc : boolean ;
+      dni,t1,t2,t3,ss,dd,tt : integer ;
+      pk : string ;
+      bb : boolean ;
+begin
+  cc := Table1.active ;
+  If not cc then Table1.Open ;
+  Table1.First ;
+  while not table1.eof do
+  begin
+    bb := false ;
+    if Table1status.value <> 2 then
+    begin
+      FcasiSt.najdi_00(Table1Koda.value,dni,t1,t2,t3,tt,pk)  ;
+     // if dni = 0 then dni := 5 ;
+
+      if dni > 0 then
+      begin
+        ss := 0 ;
+        dd := trunc(date - Table1datum.value) ;
+        if dd = dni then ss := 1 ;
+        If dd > dni then ss := 2 ;
+        if ss > 0 then
+        begin
+          table1.edit ;
+          Table1status.value := ss ;
+          Table1.Post ;
+          if ss = 2 then bb := true ;
+        end ;
+      end ;
+    end ;
+    if not bb then Table1.Next
+  end ;
+  If not cc then Table1.Close ;
+end ;
+
+
+
+function TFvseb.getpec(kd : string; dd : TdateTime): Integer ;
+begin
+  Table1.Open ;
+  if copy(kd,1,2) <> '00' then kd := FcasiSt.stark(kd) ;
+  if Table1.Locate('koda;datum',VarArrayOf([kd,dd]),[]) then
+    getpec := Table1pec.value
+  else
+    getpec := 0 ;
+  Table1.Close ;
+end ;  
+
+procedure TFvseb.Posodobistatus1Click(Sender: TObject);
+begin
+  Obnovi ;
+end;
+
+
+
+procedure TFvseb.Aktualnizapadli1Click(Sender: TObject);
+begin
+  Table1.filter := '(status = 0 or status = 1)' ;
+end;
+
+procedure TFvseb.Brii1Click(Sender: TObject);
+   var ii : integer ;
+begin
+  ii := MessageDlg('Ali zares želiš izbrisati?',mtConfirmation,[mbYes, mbNo],0);
+  if ii = 6 then  Table1.Delete
+end;
+
+procedure TFvseb.Aktualni1Click(Sender: TObject);
+begin
+  Table1.filter := 'status = 0'
+end;
+
+procedure TFvseb.Zapadli1Click(Sender: TObject);
+begin
+  Table1.filter := 'status = 1' 
+end;
+
+procedure TFvseb.Vsi1Click(Sender: TObject);
+begin
+  Table1.filter := ''
+end;
+
+procedure TFvseb.Samozaenope1Click(Sender: TObject);
+  var pc : integer ;
+      ss : string ;
+begin
+  pc := Table1pec.value ;
+  ss := ' and pec = ' + inttostr(pc) ;
+  if table1.filter <> '' then Table1.filter := Table1.Filter + ss
+                         else Table1.filter := 'pec = ' + inttostr(pc) ;
+
+end;
+
+procedure TFvseb.Datum1Click(Sender: TObject);
+begin
+   table1.Indexname := 'Datum' ;
+end;
+
+procedure TFvseb.Koda1Click(Sender: TObject);
+begin
+  table1.Indexname := 'Koda' ;
+end;
+
+procedure TFvseb.Pritej1Click(Sender: TObject);
+  var sx : string ;
+      xx : integer ;
+begin
+   sx := InputBox('Vpiši kolièino','','') ;
+   xx := StrToIntDef(sx,0) ;
+   Table1.edit ;
+   Table1kolic.Value := Table1kolic.Value + xx  ;
+   Table1.post ;
+end;
+
+procedure TFvseb.Listanalogov1Click(Sender: TObject);
+  var kk : integer;
+      connection : variant ;
+      tab,tabb,funct : variant ;
+      po : string[12] ;
+      i : integer ;
+      ss : string ;
+begin
+  Forders.Pokazi ;
+{  ftabela.prijava(Connection) ;
+  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
+  begin
+    // preberem tabelo potrditev za doloèen datum
+    SAPFunctions1.Connection := Idispatch(Connection);
+    funct := sapFunctions1.add('BAPI_PRODORD_GET_LIST');
+    po := '000003919340' ;
+    funct.Tables.Item('PRODPLANT_RANGE').AppendRow.Value('SIGN'):='I';
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,2) :='EQ';
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,3) := '0401';
+    funct.Tables.Item('PRODPLANT_RANGE').Value(1,4) := '0401';
+
+    funct.Tables.Item('ORDER_NUMBER_RANGE').AppendRow.Value('SIGN'):='I';
+    funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,2) :='GE';
+    funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,3) := po;
+ //   funct.Tables.Item('ORDER_NUMBER_RANGE').Value(1,4) := '000000558134851000';
+    // funct.Tables.Item('MATERIAL_RANGE').AppendRow.Value('HIGH'):='000000559184151000';
+
+    if not funct.call then   // èe ni v redu
+        // on error show message
+        showMessage(funct.exception)
+    else
+    begin
+       Forders.Table1.Open ;
+       tab := funct.TABLES.item('ORDER_HEADER');
+       kk := Tab.rowCount ;
+       for i := 1 to kk do
+       begin
+         ss := tab.value(i,41) ;
+         if (pos('DIASTAT',ss) > 0) and (pos('NENAPOLNJEN',ss) = 0) then
+           Forders.Zapis(tab.value(i,1), tab.value(i,5)) ;
+       end ;
+       Forders.Table1.Close ;
+    end ;
+  end ;
+  Connection.LogOff;     }
+end;
+
+
+
+procedure TFvseb.Trenutnostanje1Click(Sender: TObject);
+  var postav : vpeci ;
+begin
+  posodobi(postav) ;
+  Fpeci.pregled ;
+end;
+
+procedure TFvseb.Posodobi(var postav : vpeci);
+  var arrpc : array[1..20] of longint ;
+      stpec : longint ;
+      i : integer ;
+      fs : string ;
+      dt : TdateTime ;
+      kd : string ;
+begin
+  fs := Table1.filter ;
+  dt := date-30 ;
+  Table1.filter := 'status = 0 and datum > ' +  '''' + DateToStr(dt) + ''''  ;
+
+  for i := 1 to 20 do arrpc[i] := 0 ;
+  for i := 1 to 20 do postav[i] := 0 ;
+  Table1.First ;
+  While not table1.eof do
+  begin
+    kd := table1koda.Value ;
+    stpec := table1pec.value ;
+    if (stpec <1) or (stpec > 16) then Showmessage(dateTostr(table1datum.value))
+    else begin
+      arrpc[stpec] := arrpc[stpec] + Table1kolic.value ;
+      postav[stpec] := postav[stpec] + 1 ;
+    end;
+
+    stpec := table1pec1.value ;
+    if (stpec > 0) and (stpec < 17) then
+    begin
+      arrpc[stpec] := arrpc[stpec] + Table1kolic.value ;
+      postav[stpec] := postav[stpec] + 1 ;
+    end;
+    Table1.next ;
+  end ;
+  with Fpeci do
+  begin
+    Odpri ;
+    While Not table1.eof do
+    begin
+      Table1.edit ;
+      stpec := table1stev.value ;
+      Table1trenut.value := arrpc[stpec] ;
+      Table1.Next
+    end ;
+    Table1.Close ;
+    //pregled ;
+  end ;
+  Table1.filter := fs ;
+end;
+
+
+procedure TFvseb.Zasedenost1Click(Sender: TObject);
+  var ipec : integer ;
+      kd,pk,fl : string ;
+      xx,kap : longint ;
+      cs,t1,t2,t3,tt : Integer ;
+      clist : Tlist ;
+      nasel : boolean ;
+      pp : ^danPec ;
+      dt,dat1,dat2 : TdateTime ;
+      i,j,tr : Integer ;
+begin
+  clist := Tlist.create ;
+  FDoba.vpisi(dat1,dat2) ;
+  tr := Round(dat2-dat1) ;
+  for i := 0 to tr do
+  begin
+    new(pp) ;
+    pp^.datum := dat1 ;
+    pp^.klDia := 0;
+    clist.add(pp) ;
+    dat1 := dat1 + 1 ;
+  end ;
+  fl := table1.Filter ;
+  table1.Filter := '' ;
+  table1.First ;
+  ipec := StrToInt(Inputbox('Štvilka peèi','','1')) ;
+  kap := Fpeci.Getkap(ipec) ;
+  while Not table1.eof do
+  begin
+    if table1pec.value = ipec then
+    begin
+      xx := Table1kolic.value ;
+      kd := Table1Koda.value ;
+      dt := Table1datum.value ;
+      FcasiSt.najdi_00(kd,cs,t1,t2,t3,tt,pk) ;
+      for j := 1 to cs do
+      begin
+        nasel := false ;
+        for i := 0 to clist.count-1 do
+        begin
+          pp := clist[i] ;
+          if dt = pp^.datum then pp^.klDia := pp^.klDia + xx ;
+        end ;
+        dt := dt + 1 ;
+      end ;
+    end ;
+    Table1.Next
+  end ;
+  table1.Filter := fl ;
+  FXkarta.Prikazi1(kap,clist) ;
+  Clist.Free ;
+end;
+
+procedure TFvseb.Preverjnajeravnosti1Click(Sender: TObject);
+  var kd,sk,pk : string ;
+      cs,t1,t2,t3,tt : Integer ;
+begin
+ // table1.First ;
+  while not table1.eof do
+  begin
+    kd := Table1koda.value ;
+    FcasiSt.najdi_00(kd,cs,t1,t2,t3,tt,pk) ;
+    sk := Fpeci.Getrav(Table1pec.value) ;
+    if sk = 'K' then sk := 'N' ;
+    if sk <> pk then exit ;
+    Table1.next ;
+  end ;
+end;
+
+procedure TFvseb.Popraviravnost1Click(Sender: TObject);
+begin
+  FcasiSt.poprav(table1koda.value) ;
+end;
+
+procedure TFvseb.Koliine1Click(Sender: TObject);
+  var kol : longint ;
+      dat1,dat2,dd : TdateTime ;
+begin
+  Table1.first ;
+  Fdoba.Vpisi(dat1,dat2) ;
+  kol := 0 ;
+  While not table1.eof do
+  begin
+    dd := table1datum.value ;
+    if (dd >= dat1) and (dd <= dat2) then kol := kol + table1kolic.value ;
+    table1.next ;
+  end ;
+  Showmessage(IntTostr(kol)) ;
+end;
+
+procedure TFvseb.ZasedenostExcel1Click(Sender: TObject);
+ var ipec : integer ;
+      kd,pk,fl : string ;
+      xx,kap : longint ;
+      cs,t1,t2,t3,tt : Integer ;
+      clist : Tlist ;
+      nasel : boolean ;
+      pp : ^danPec ;
+      excel : variant ;
+      dt,dz,dz1,dz2 : TdateTime ;
+      i,j : Integer ;
+begin
+  clist := Tlist.create ;
+  Fdoba.vpisi(dz1,dz2);
+  dz := dz1 ;
+  while dz <= dz2 do
+  begin
+    new(pp) ;
+    pp^.datum := dz ;
+    pp^.klDia := 0;
+    clist.add(pp) ;
+    dz := dz + 1 ;
+  end ;
+  fl := table1.Filter ;
+  table1.Filter := '' ;
+  table1.First ;
+  ipec := StrToInt(Inputbox('Štvilka peèi','','1')) ;
+  kap := Fpeci.Getkap(ipec) ;
+  while Not table1.eof do
+  begin
+    if (table1pec.value = ipec) and (table1datum.value >= dz1) and (table1datum.value <= dz2) then
+    begin
+      xx := Table1kolic.value ;
+      kd := Table1Koda.value ;
+      dt := Table1datum.value ;
+      FcasiSt.najdi_00(kd,cs,t1,t2,t3,tt,pk) ;
+      for j := 1 to cs do
+      begin
+        nasel := false ;
+        for i := 0 to clist.count-1 do
+        begin
+          pp := clist[i] ;
+          if dt = pp^.datum then pp^.klDia := pp^.klDia + xx ;
+        end ;
+        dt := dt + 1 ;
+      end ;
+    end ;
+    Table1.Next
+  end ;
+  table1.Filter := fl ;
+
+  excel := GetActiveOLEObject(ExcelApp);
+  for i := 0 to clist.count-1 do
+  begin
+    pp := clist[i] ;
+    //excel.Cells[i+1,1] := pp^.datum ;
+    excel.Cells[i+1,ipec+1] := pp^.Kldia ;
+  end ;
+  Clist.Free ;
+end;
+
+end.

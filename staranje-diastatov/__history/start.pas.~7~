@@ -1,0 +1,122 @@
+unit start;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, pomoc,
+  StdCtrls;
+
+type
+  TFstart = class(TForm)
+    GroupBox1: TGroupBox;
+    Edit1: TEdit;
+    Label1: TLabel;
+    Button1: TButton;
+    GroupBox2: TGroupBox;
+    GroupBox3: TGroupBox;
+    Button2: TButton;
+    Edit2: TEdit;
+    Label2: TLabel;
+    RadioButton1: TRadioButton;
+    RadioButton2: TRadioButton;
+    RadioButton3: TRadioButton;
+    Button3: TButton;
+    Edit3: TEdit;
+    Label3: TLabel;
+    Memo1: TMemo;
+    Label4: TLabel;
+    Memo2: TMemo;
+    Label5: TLabel;
+    Button4: TButton;
+    GroupBox4: TGroupBox;
+    Button5: TButton;
+    Button6: TButton;
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure FormActivate(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  Fstart: TFstart;
+
+implementation
+
+uses tabela, query, vseb;
+
+{$R *.DFM}
+
+// izvedba prenosa iz SAP-a
+procedure TFstart.Button1Click(Sender: TObject);
+  var dat : TdateTime ;
+begin
+   dat := NizTodatum(edit1.Text) ;
+   Ftabela.prenos(dat,1) ;
+   Fvseb.obnovi ;
+end;
+
+// Prikaz celotne tabele
+procedure TFstart.Button2Click(Sender: TObject);
+begin
+   Ftabela.pokaziVse ; 
+end;
+
+// Zaèetne nastavitve
+procedure TFstart.FormActivate(Sender: TObject);
+begin
+   FormatSettings.DateSeparator := '.' ;
+   FormatSettings.shortDateFormat := 'd.m.yyyy' ;
+   GroupBox1.color := $02ff8888 ;
+   GroupBox2.color := $028888ff ;
+   GroupBox3.color := $02ff88ff ;
+   GroupBox4.color := $02ff8800 ;
+   edit2.Text := dateToStr(date) ;
+   edit1.Text := dateToStr(date-1) ;
+  // ReportMemoryLeaksOnShutdown := true ;
+end;
+
+procedure TFstart.FormCreate(Sender: TObject);
+begin
+  FormatSettings.DateSeparator := '.' ;
+  FormatSettings.shortDateFormat := 'd.m.yyyy' ;
+end;
+
+// Prikaz za en dan
+procedure TFstart.Button3Click(Sender: TObject);
+  var ix : integer ;
+begin
+  ix := 3 ;
+  if radioButton1.checked then ix := 1 ;
+  if radioButton2.checked then ix := 2 ;
+  Fquery.pokazi(strTodate(edit2.text),ix)
+ //  Fquery.pokazi(date,ix)
+end;
+
+procedure TFstart.Button4Click(Sender: TObject);
+begin
+  Application.Terminate
+end;
+
+procedure TFstart.Button5Click(Sender: TObject);
+begin
+  Fvseb.Pokazi
+end;
+
+procedure TFstart.Button6Click(Sender: TObject);
+  var tt : longint ;
+begin
+  Ftabela.prenos(strTodate(edit1.text),2) ;
+  {tt := getTickCount ;
+  Fvseb.obnovi ;
+  Showmessage(IntTostr(gettickcount-tt)) ; }
+end;
+
+end.

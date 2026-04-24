@@ -1,0 +1,308 @@
+// modul za prikaz èasovnega poteka napak
+
+unit xkarta;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, StdCtrls, Printers, pomoc, Menus ;
+
+type
+  msNap = record
+    mes : string ;
+    prc : single ;
+  end ;
+  matrik = array[1..53,1..4] of longint ;
+  TFxkarta = class(TForm)
+    Panel1: TPanel;
+    Image1: TImage;
+    Panel2: TPanel;
+    Image2: TImage;
+    Panel3: TPanel;
+    Image3: TImage;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    MainMenu1: TMainMenu;
+    Izpis1: TMenuItem;
+    Konec1: TMenuItem;
+    //procedure Button2Click(Sender: TObject);
+    //procedure Button1Click(Sender: TObject);
+    procedure Izpis1Click(Sender: TObject);
+    procedure Konec1Click(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    Procedure Prikazi(nn : integer; mat : matrik;k : integer; napak,deli : TstringList) ;
+    Procedure Prikazi1(kap : longint;sList : Tlist) ;
+  end;
+
+var
+  Fxkarta: TFxkarta;
+
+implementation
+
+{$R *.DFM}
+
+uses vseb;
+
+Procedure TFxkarta.Prikazi(nn : integer; mat : matrik; k : integer; napak,deli : TstringList) ;
+  var x,y : single ;
+      i,ix,j,ll,md,StNp : integer ;
+      sb : string ;
+      intA, intB : longint ;
+      rr : Trect ;
+begin
+  height := 80*LOWORD(GetDialogBaseUnits) ;
+  Width := 112*LOWORD(GetDialogBaseUnits) ;
+  image3.width := panel3.Clientwidth  ;
+  image3.height := panel3.Clientheight  ;
+  image2.height := panel2.Clientheight  ;
+  image1.width := panel1.Clientwidth  ;
+  StNp := napak.Count ;    // število napak za prikaz (najveè 3)
+
+  // prva dva parametra predstavljata spodnjo in zgornjo mejo diagrama
+  intA := 0 ;
+  intB := 0 ;
+  for j := 1 to stNp do
+    for i := 1 to nn do
+      if mat[i+k-1,j] > intB then intB := mat[i+k-1,j] ;
+  if intA = IntB then intB := intA + 100 ;
+
+  // oznake na y osi
+  with Image2 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+    sb := IntToStr(intB)  ;
+    Canvas.TextOut(width-Canvas.TextWidth(sb)-5,0,sb) ;
+    sb := IntToStr(intB div 2) ;
+    Canvas.TextOut(width-Canvas.TextWidth(sb)-5,(panel1.height) div 2 -12,sb) ;
+  end ;
+
+  // na x-os zaenkrat niè ne napišem
+  with image3 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+  end ;
+
+  // risanje grafa
+  with Image1 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+    // narišem koordinatni sistem
+    Canvas.MoveTo(0,height) ;
+    Canvas.LineTo(0,0) ;
+    Canvas.MoveTo(0,height-1) ;
+    Canvas.LineTo(width,height-1) ;
+
+    Canvas.Pen.Style := psSolid ;
+    Canvas.TextOut(2,0,'ppm') ;
+    Canvas.TextOut(width-canvas.TextWidth('teden '),height-Canvas.TextHeight('teden')-2,'teden') ;
+
+    // doloèim širino koraka
+    ix := width div nn ;
+    if ix = 0 then ix := 1 ;
+
+    // doloèim pogostnost izpisov na x-osi
+    if nn > 30 then md := 2 else md := 1 ;
+    ll := k ;                   // ll pomeni zap. št. tedna 
+    // obdelam vsako napako posebej
+    for j := 1 to stNp do
+    begin
+      case j of
+        1 : Canvas.Pen.Color := clBlack ;
+        2 : Canvas.Pen.Color := clred ;
+        3 : Canvas.Pen.Color := clBlue ;
+      end ;
+      for i := 1 to nn do
+      begin
+        x := mat[i+k-1,j] ;
+        y := height*(x-IntA)/(IntB-IntA) ;
+        if i = 1 then Canvas.MoveTo((i-1)*ix,height-Round(y))
+                 else Canvas.LineTo((i-1)*ix,height-Round(y)) ;
+
+        // oznako na x osi izpišem le ko naredim dovolj korakov da presežem
+        // dolžino prejšnje oznake
+        if (j = 1) and ((i mod md) = 0)  then
+        begin
+          Image3.Canvas.MoveTo((i-1)*ix+Panel1.left,0) ;
+          Image3.Canvas.LineTo((i-1)*ix+Panel1.left,3) ;
+          Image3.Canvas.TextOut((i-1)*ix+Panel1.left-5 ,5,IntTostr(ll)) ;
+        end;
+        inc(ll) ;
+      end ;
+
+      // pod osjo-x izdelam še legendo
+      case j of
+        1 : Image3.Canvas.Pen.Color := clBlack ;
+        2 : Image3.Canvas.Pen.Color := clred ;
+        3 : Image3.Canvas.Pen.Color := clBlue ;
+      end ;
+      Image3.Canvas.MoveTo(Panel1.left+(j-1)*120,40) ;
+      Image3.Canvas.LineTo(Panel1.left+(j-1)*120+40,40) ;
+      Image3.Canvas.TextOut(Panel1.left+(j-1)*120+45,35,deli[j-1]+'-'+napak[j-1]) ;
+    end ;
+    Image3.Canvas.Pen.Color := clBlack ;
+    Canvas.Pen.Color := clBlack ;
+  end ;
+  ShowModal ;
+end ;
+
+
+
+Procedure TFxkarta.Prikazi1(kap : longint; sList : Tlist) ;
+  var x,y : single ;
+      i,ix,j,md,nn,ll : integer ;
+      sb : string ;
+      intA, intB : longint ;
+      rr : Trect ;
+      pp : ^danpec ;
+begin
+  height := 80*LOWORD(GetDialogBaseUnits) ;
+  Width := 112*LOWORD(GetDialogBaseUnits) ;
+  image3.width := panel3.Clientwidth  ;
+  image3.height := panel3.Clientheight  ;
+  image2.height := panel2.Clientheight  ;
+  image1.width := panel1.Clientwidth  ;
+
+  // prva dva parametra predstavljata spodnjo in zgornjo mejo diagrama
+  intA := 0 ;
+  intB := 30000 ;
+  nn := slist.count ;
+  // oznake na y osi
+  with Image2 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+    sb := IntToStr(intB)  ;
+    Canvas.TextOut(width-Canvas.TextWidth(sb)-5,0,sb) ;
+    sb := IntToStr(intB div 2) ;
+    Canvas.TextOut(width-Canvas.TextWidth(sb)-5,(panel1.height) div 2 -12,sb) ;
+  end ;
+
+  // na x-os zaenkrat niè ne napišem
+  with image3 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+  end ;
+
+  // risanje grafa
+  with Image1 do
+  begin
+    rr.left := 0 ; rr.top := 0 ; rr.right := width ; rr.bottom := height ;
+    Canvas.FillRect(rr);
+    // narišem koordinatni sistem
+    Canvas.MoveTo(0,height) ;
+    Canvas.LineTo(0,0) ;
+    Canvas.MoveTo(0,height-1) ;
+    Canvas.LineTo(width,height-1) ;
+    // alternativno narišem vmesne vodoravne èrte in dodatne oznake na y osi
+   { for i := 2 to stInd do
+    begin
+      y := height*(Param[i]-IntA)/(IntB-IntA) ;
+      Canvas.MoveTo(0,height-Round(y)) ;
+      Canvas.LineTo(width,height-Round(y)) ;
+      sb := FloatToStrF(Param[i],ffFixed,6,1) ;
+      Image2.Canvas.TextOut(Image2.width-Canvas.TextWidth(sb)-5,height-Round(y)-6,sb) ;
+      Canvas.Pen.Style := psDot ;
+    end ;
+    Canvas.Pen.Style := psSolid ;
+    Canvas.TextOut(2,0,'ppm') ;
+    Canvas.TextOut(width-canvas.TextWidth('teden '),height-Canvas.TextHeight('teden')-2,'teden') ;
+    }
+
+    y := height*(kap-IntA)/(IntB-IntA) ;
+    Canvas.MoveTo(0,height-Round(y)) ;
+    Canvas.LineTo(width,height-Round(y)) ;
+    Image2.Canvas.TextOut(Image2.width-Canvas.TextWidth('Kapac.'),height-Round(y)-6,'Kapac') ;
+    // doloèim širino koraka
+    ix := (width-40) div (nn-1) ;
+    if ix = 0 then ix := 1 ;
+
+
+    for i := 1 to nn do
+    begin
+       pp :=  slist[i-1] ;
+       x := pp^.klDia ;
+       y := height*(x-IntA)/(IntB-IntA) ;
+       if i = 1 then Canvas.MoveTo((i-1)*ix,height-Round(y))
+                else Canvas.LineTo((i-1)*ix,height-Round(y)) ;
+
+       if (i mod 6) = 1 then
+       begin
+         Image3.Canvas.MoveTo((i-1)*ix+Panel1.left,0) ;
+         Image3.Canvas.LineTo((i-1)*ix+Panel1.left,3) ;
+         ll := length(dateToStr(pp^.datum))-5 ;
+         Image3.Canvas.TextOut((i-1)*ix+Panel1.left-10 ,5,copy(dateToStr(pp^.datum),1,ll)) ;
+       end ;
+    end ;
+
+    Image3.Canvas.Pen.Color := clBlack ;
+    Canvas.Pen.Color := clBlack ;
+  end ;
+  ShowModal ;
+end ;
+
+
+procedure TFxkarta.Izpis1Click(Sender: TObject);
+     var pravt,prav1 : Trect ;
+      isir,ivis : integer ;
+      ix : longint ;
+      razm : single ;
+begin
+  with Printer do
+  begin
+    BeginDoc ;
+    isir := Canvas.TextWidth('O') ;
+    ivis := Canvas.TextHeight('O') ;
+
+    Canvas.Font.Name := 'Times New Roman' ;
+    Canvas.Font.Size := 10 ;
+    Canvas.TextOut(3*isir,ivis,Caption) ;
+    Canvas.TextOut(3*isir,3*ivis,label1.Caption) ;
+    Canvas.TextOut(27*isir,3*ivis,label2.Caption) ;
+    Canvas.TextOut(45*isir,3*ivis,label3.Caption) ;
+    Canvas.TextOut(60*isir,3*ivis,label4.Caption) ;
+    // prepišem graf
+    pravt := Canvas.ClipRect;
+    pravt.left := pravt.left + 12*isir ;
+    pravt.right := pravt.right - 8*isir ;
+    pravt.top := pravt.top  + 6*ivis ;
+    pravt.bottom := pravt.bottom div 3 + 6*ivis ;
+
+    prav1 := pravt ;
+    prav1.left := prav1.left - 4*isir ;
+    prav1.bottom := prav1.bottom + 2*ivis ;
+
+    PrintBitmap(Canvas,pravt,Image1.Picture.Bitmap);
+    razm := (pravt.right-pravt.left)/Image1.width ;
+
+    // prepišem oznake na y-osi
+    ix := pravt.right ;
+    pravt.right := pravt.left ;
+    pravt.left := Pravt.left - round(razm*Image2.Width) ;
+    PrintBitmap(Canvas,pravt,Image2.Picture.Bitmap);
+
+    // prepišem oznake na x-osi
+    pravt.right := ix ;
+    pravt.top := pravt.Bottom ;
+    pravt.bottom := pravt.Top + 2*ivis ;
+    PrintBitmap(Canvas,pravt,Image3.Picture.Bitmap);
+    EndDoc
+  end ;
+end;
+
+
+procedure TFxkarta.Konec1Click(Sender: TObject);
+begin
+
+   Close ;
+end;
+
+end.

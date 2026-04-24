@@ -1,0 +1,101 @@
+unit vpis;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  StdCtrls, ExtCtrls;
+
+type
+  TFvpis = class(TForm)
+    Panel1: TPanel;
+    ComboBox1: TComboBox;
+    Label1: TLabel;
+    Label2: TLabel;
+    ListBox1: TListBox;
+    Edit1: TEdit;
+    Label3: TLabel;
+    Label4: TLabel;
+    Edit2: TEdit;
+    Button1: TButton;
+    Button2: TButton;
+    Label5: TLabel;
+    Memo1: TMemo;
+    procedure ComboBox1Exit(Sender: TObject);
+    procedure ComboBox1Enter(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    Procedure Zapis(var kd : string; var dt : TDateTime; var pc,kl : integer) ;
+  end;
+
+var
+  Fvpis: TFvpis;
+
+implementation
+
+uses peci, casiSt, orders;
+
+{$R *.DFM}
+
+Procedure TFvpis.Zapis(var kd : string; var dt : TDateTime; var pc,kl : integer) ;
+  var Listpec,ListKod : TstringList ;
+      ii : Integer ;
+begin
+  Listpec := TstringList.Create ;
+  ListKod := TstringList.Create ;
+  FPeci.GetList(listpec) ;
+  Forders.GetList(listkod) ;
+  ComboBox1.items := ListKod ;
+  ListBox1.items := Listpec ;
+  Panel1.Color := $02C0C0ff ;
+  combobox1.text := '' ;
+  edit2.text := '' ;
+  edit1.text := DateTostr(date) ;
+  ShowModal ;
+  if modalResult = mrOK then
+  begin
+    kd := ComboBox1.text ;
+    kl := StrToIntDef(edit2.text,0) ;
+    dt := StrToDate(edit1.text) ;
+    ii := ListBox1.itemIndex ;
+    if ii >= 0 then
+      pc := StrToInt(copy(Listbox1.Items[ii],1,2)) 
+    else
+    begin
+      kd := '' ;
+      ShowMessage('Peè ni bila izbrana')
+    end ;
+  end else
+    kd := '' ;
+  Listpec.Free ;
+  ListKod.free ;
+end ;
+
+
+procedure TFvpis.ComboBox1Exit(Sender: TObject);
+  var kd : string ;
+      cs,t1,t2,t3,tt,i : integer ;
+      pk : string ;
+      listpec : tstringList ;
+begin
+   kd := combobox1.text ;
+   FcasiSt.Najdi(kd,cs,t1,t2,t3,tt,pk) ;
+   if cs = 0 then
+     ShowMessage('Te kode ni v bazi')
+   else
+   begin
+     listpec := TstringList.create ;
+     Fpeci.Getpec(cs,tt,pk,Listpec) ;
+     for i := 0 to listpec.count -1 do
+       Memo1.lines.add(listpec[i]) ;
+     Listpec.free
+   end
+end;
+
+procedure TFvpis.ComboBox1Enter(Sender: TObject);
+begin
+  Memo1.Lines.Clear ;
+end;
+
+end.

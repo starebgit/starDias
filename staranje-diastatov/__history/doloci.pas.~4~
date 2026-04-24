@@ -1,0 +1,40 @@
+unit doloci;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls;
+
+type
+  TFdoloci = class(TForm)
+    Panel1: TPanel;
+    ListBox1: TListBox;
+    DatePicker1: TDateTimePicker;
+    Label1: TLabel;
+    Label2: TLabel;
+  private
+    { Private declarations }
+  public
+    procedure izbor(var dd : TdateTime; var pc : Integer) ;
+  end;
+
+var
+  Fdoloci: TFdoloci;
+
+implementation
+
+{$R *.dfm}
+
+uses peci;
+procedure TfDoloci.izbor(var dd : TdateTime; var pc : Integer) ;
+  var Listpec,ListKod : TstringList ;
+begin
+  Listpec := TstringList.Create ;
+  panel1.Color := $02F0F0FF ;
+  FPeci.GetList(listpec) ;
+  ListBox1.items := Listpec ;
+  ShowModal ;
+  dd := datePicker1.Date ;
+end;
+end.
