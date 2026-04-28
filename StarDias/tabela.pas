@@ -128,6 +128,7 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
       ssx : string[8] ;
       ss1 : string[4] ;
       otip : char ;
+      vMachine : string ;
 
    function PreveriDan(st_potr : string; don : Integer) : boolean ;
    begin
@@ -145,12 +146,37 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
        result := false ;
    end ;
 
+   function GetMachineNameSafe : string ;
+     var
+       nSize : DWORD ;
+       nName : array[0..MAX_COMPUTERNAME_LENGTH] of Char ;
+   begin
+     nSize := MAX_COMPUTERNAME_LENGTH + 1;
+     if Windows.GetComputerName(nName, nSize) then
+       Result := StrPas(nName)
+     else
+       Result := 'UNKNOWN';
+   end;
+
+   procedure LogStep(const AStep, AMessage : string) ;
+   begin
+     PisiLog('MACHINE=' + vMachine + '; STEP=' + AStep + '; MSG=' + AMessage);
+   end;
+
+   procedure LogException(const AStep : string; E : Exception) ;
+   begin
+     LogStep(AStep, 'EX=' + E.ClassName + '; MSG=' + E.Message);
+   end;
+
 begin
-  if dat >= date then
-  begin
-     ShowMessage('Prenos za današnji dan ni mogoč') ;
-     exit
-  end ;
+  vMachine := GetMachineNameSafe;
+  LogStep('PRENOS_START', 'ix=' + IntToStr(ix) + '; dat=' + DateToStr(dat));
+  try
+    if dat >= date then
+    begin
+       ShowMessage('Prenos za današnji dan ni mogoč') ;
+       exit
+    end ;
 
   // Ekskluzivna raba tabele
   Table1.exclusive := true ;
@@ -170,19 +196,27 @@ try
   try
     Table1.Open;
   except
-    ShowMessage('ZASEDENA (exclusive fail) -> nek drug proces/instanca/uporabnik ima "stara.db" odprto.' + sLineBreak +
+    on E: Exception do
+    begin
+      LogException('OPEN_EXCLUSIVE', E);
+      ShowMessage('ZASEDENA (exclusive fail) -> nek drug proces/instanca/uporabnik ima "stara.db" odprto.' + sLineBreak +
+                  'DB=' + Table1.DatabaseName + sLineBreak +
+                  'Table=' + Table1.TableName);
+      Table1.Exclusive := False;
+      Exit;
+    end;
+  end;
+
+except
+  on E: Exception do
+  begin
+    LogException('OPEN_NON_EXCLUSIVE', E);
+    ShowMessage('NE MOREM odpreti niti non-exclusive -> napačna pot/datoteka/pravice.' + sLineBreak +
                 'DB=' + Table1.DatabaseName + sLineBreak +
                 'Table=' + Table1.TableName);
     Table1.Exclusive := False;
     Exit;
   end;
-
-except
-  ShowMessage('NE MOREM odpreti niti non-exclusive -> napačna pot/datoteka/pravice.' + sLineBreak +
-              'DB=' + Table1.DatabaseName + sLineBreak +
-              'Table=' + Table1.TableName);
-  Table1.Exclusive := False;
-  Exit;
 end;
 
   // --- NEW: ponovni prenos always starts clean (prevents duplicates if last run was canceled)
@@ -224,7 +258,10 @@ end;
     funct := sapFunctions1.add('ZETA_RFC_READ_AFRU');
     Funct.EXPORTS('dday').VALUE := dtt;
     if not funct.call then           // če ni bilo v redu
+    begin
+       LogStep('ZETA_RFC_READ_AFRU', 'RFC failure: ' + funct.exception);
        showMessage(funct.exception)
+    end
     else
     begin
        tab := funct.TABLES.item('IT_AFRU');    // tabela rezultatov
@@ -286,7 +323,10 @@ end;
              funct1.exports('ORDER_OBJECTS').value(2) := 'X' ;
              funct1.exports('ORDER_OBJECTS').value(4) := 'X' ;
              if not funct1.call then           // če ni bilo v redu
+             begin
+               LogStep('BAPI_PRODORD_GET_DETAIL', 'RFC failure: ' + funct1.exception + '; nalog=' + st_nal);
                showMessage(funct1.exception) ;
+             end;
 
              // potrebujem podatke iz dveh tabel
              tabb := funct1.TABLES.item('HEADER');
@@ -342,13 +382,31 @@ end;
                   if koda[2] = '-' then koda[2] := '0' ;
                   kd := trim(koda) ;
                   db := 0 ;
-                  FcasiSt.najdi(kd,db,t1,t2,t3,tz,pk) ;      // preberem predpisano dobo staranja
+                  try
+                    FcasiSt.najdi(kd,db,t1,t2,t3,tz,pk) ;      // preberem predpisano dobo staranja
+                  except
+                    on E: Exception do
+                    begin
+                      LogException('CASIST_NAJDI', E);
+                      LogStep('CASIST_NAJDI', 'koda=' + kd + '; potrditev=' + st_potr);
+                      raise;
+                    end;
+                  end;
                   if db = 0 then                 // če tega podatka ne najdem
                   begin
                     Fstart.memo1.Lines.Add(kd) ;
                     Fstart.Update ;
                   end ;
-                  pc := FVseb.Getpec(copy(koda,1,12),dat) ;
+                  try
+                    pc := FVseb.Getpec(copy(koda,1,12),dat) ;
+                  except
+                    on E: Exception do
+                    begin
+                      LogException('VSEB_GETPEC', E);
+                      LogStep('VSEB_GETPEC', 'koda=' + Copy(koda,1,12) + '; datum=' + DateToStr(dat));
+                      raise;
+                    end;
+                  end;
                   if ix = 2 then prv := PreveriDan(st_potr,don) else prv := true ;
                   if prv then
 //                     Table1.AppendRecord([
@@ -426,8 +484,25 @@ end;
     plist.Free ;
     Table1.Close ;
   end ;
-  grupirajavtom(dat,ix) ;
+  try
+    grupirajavtom(dat,ix) ;
+  except
+    on E: Exception do
+    begin
+      LogException('GRUPIRAJAVTOM', E);
+      LogStep('GRUPIRAJAVTOM', 'dat=' + DateToStr(dat) + '; ix=' + IntToStr(ix));
+      raise;
+    end;
+  end;
   Table1.exclusive := false ;
+  LogStep('PRENOS_END', 'status=DONE');
+  except
+    on E: Exception do
+    begin
+      LogException('PRENOS_RUNTIME', E);
+      raise;
+    end;
+  end;
 end;
 
 // prikaz tabele vseh prenešenih podatkov
