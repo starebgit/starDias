@@ -128,6 +128,9 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
       ssx : string[8] ;
       ss1 : string[4] ;
       otip : char ;
+      vMachine : string ;
+      vLoggedOn : Boolean ;
+      vPrenosOk : Boolean ;
 
    function PreveriDan(st_potr : string; don : Integer) : boolean ;
    begin
@@ -145,101 +148,147 @@ Procedure  TfTabela.prenos(dat : TdateTime;ix : Integer)  ;
        result := false ;
    end ;
 
+   function GetMachineNameSafe : string ;
+     var
+       nSize : DWORD ;
+       nName : array[0..MAX_COMPUTERNAME_LENGTH] of Char ;
+   begin
+     nSize := MAX_COMPUTERNAME_LENGTH + 1;
+     if Windows.GetComputerName(nName, nSize) then
+       Result := StrPas(nName)
+     else
+       Result := 'UNKNOWN';
+   end;
+
+   procedure LogStep(const AStep, AMessage : string) ;
+   begin
+     PisiLog('MACHINE=' + vMachine + '; STEP=' + AStep + '; MSG=' + AMessage);
+   end;
+
+   procedure LogDbError(const AStep : string; E : Exception) ;
+     var
+       dbErr : EDBEngineError ;
+       logIdx : Integer ;
+   begin
+     LogStep(AStep, 'EX=' + E.ClassName + '; MSG=' + E.Message);
+     if E is EDBEngineError then
+     begin
+       dbErr := EDBEngineError(E);
+       for logIdx := 0 to dbErr.ErrorCount - 1 do
+         PisiLog('MACHINE=' + vMachine + '; STEP=' + AStep +
+                 '; DB_ERR_CODE=' + IntToStr(dbErr.Errors[logIdx].ErrorCode) +
+                 '; DB_ERR_MSG=' + dbErr.Errors[logIdx].Message);
+     end;
+   end;
+
 begin
+  vMachine := GetMachineNameSafe;
+  vLoggedOn := False;
+  vPrenosOk := False;
+  plist := nil;
+  LogStep('PRENOS_START', 'ix=' + IntToStr(ix) + '; dat=' + DateToStr(dat));
+
   if dat >= date then
   begin
      ShowMessage('Prenos za današnji dan ni mogoč') ;
+     LogStep('VALIDATION', 'Prenos za današnji dan ni mogoč');
      exit
   end ;
 
-  // Ekskluzivna raba tabele
-  Table1.exclusive := true ;
-
-  Table1.Close;
-
-
-
-// 1) Try NON-exclusive open first (diagnostic)
-Table1.Exclusive := False;
-try
-  Table1.Open;   // if THIS fails -> it's not “exclusive problem”, it's path/file/permission
-  Table1.Close;
-
-  // 2) Now try exclusive open
-  Table1.Exclusive := True;
   try
-    Table1.Open;
-  except
-    ShowMessage('ZASEDENA (exclusive fail) -> nek drug proces/instanca/uporabnik ima "stara.db" odprto.' + sLineBreak +
-                'DB=' + Table1.DatabaseName + sLineBreak +
-                'Table=' + Table1.TableName);
+    // Ekskluzivna raba tabele
+    Table1.exclusive := true ;
+    Table1.Close;
+
+    // 1) Try NON-exclusive open first (diagnostic)
     Table1.Exclusive := False;
-    Exit;
-  end;
+    try
+      Table1.Open;   // if THIS fails -> it's not “exclusive problem”, it's path/file/permission
+      Table1.Close;
 
-except
-  ShowMessage('NE MOREM odpreti niti non-exclusive -> napačna pot/datoteka/pravice.' + sLineBreak +
-              'DB=' + Table1.DatabaseName + sLineBreak +
-              'Table=' + Table1.TableName);
-  Table1.Exclusive := False;
-  Exit;
-end;
-
-  // --- NEW: ponovni prenos always starts clean (prevents duplicates if last run was canceled)
-  if ix = 2 then
-  begin
-    Table1.Filtered := False;
-    Table1.First;
-    while not Table1.Eof do
-    begin
-      if Trunc(Table1.FieldByName('DATUM').AsDateTime) = Trunc(dat) then
-        Table1.Delete
-      else
-        Table1.Next;
+      // 2) Now try exclusive open
+      Table1.Exclusive := True;
+      try
+        Table1.Open;
+      except
+        on E: Exception do
+        begin
+          LogDbError('OPEN_EXCLUSIVE', E);
+          ShowMessage('ZASEDENA (exclusive fail) -> nek drug proces/instanca/uporabnik ima "stara.db" odprto.' + sLineBreak +
+                      'DB=' + Table1.DatabaseName + sLineBreak +
+                      'Table=' + Table1.TableName);
+          Exit;
+        end;
+      end;
+    except
+      on E: Exception do
+      begin
+        LogDbError('OPEN_NON_EXCLUSIVE', E);
+        ShowMessage('NE MOREM odpreti niti non-exclusive -> napačna pot/datoteka/pravice.' + sLineBreak +
+                    'DB=' + Table1.DatabaseName + sLineBreak +
+                    'Table=' + Table1.TableName);
+        Exit;
+      end;
     end;
-  end;
-  // --- END NEW
 
-  if ix = 1 then
-  begin
-    // preverim če je bil prenos že izvršen
-    if Table1.Locate('datum',dat,[]) then
+    // --- NEW: ponovni prenos always starts clean (prevents duplicates if last run was canceled)
+    if ix = 2 then
     begin
-      ShowMessage('Prenos za ta dan je že izveden') ;
-      Table1.Close ;
-      Table1.exclusive := false ;
-      exit
+      Table1.Filtered := False;
+      Table1.First;
+      while not Table1.Eof do
+      begin
+        if Trunc(Table1.FieldByName('DATUM').AsDateTime) = Trunc(dat) then
+          Table1.Delete
+        else
+          Table1.Next;
+      end;
+    end;
+    // --- END NEW
+
+    if ix = 1 then
+    begin
+      // preverim če je bil prenos že izvršen
+      if Table1.Locate('datum',dat,[]) then
+      begin
+        ShowMessage('Prenos za ta dan je že izveden') ;
+        LogStep('VALIDATION', 'Prenos za ta dan je že izveden');
+        exit
+      end ;
     end ;
-  end ;
 
-  prijava(Connection) ;
+    prijava(Connection) ;
 
-  // pretvorba datuma v SAP format
-  dtt := DatToText(dat) ;
-  PisiLog(IntTostr(ix) + '#' + dtt) ;
-  if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
-  begin
-    // preberem tabelo potrditev za določen datum
-    SAPFunctions1.Connection := Idispatch(Connection);
-    funct := sapFunctions1.add('ZETA_RFC_READ_AFRU');
-    Funct.EXPORTS('dday').VALUE := dtt;
-    if not funct.call then           // če ni bilo v redu
-       showMessage(funct.exception)
-    else
+    // pretvorba datuma v SAP format
+    dtt := DatToText(dat) ;
+    PisiLog(IntTostr(ix) + '#' + dtt) ;
+    if Connection.LogOn(0,true) = true then  (* parameter "true" = SilentLogOn *)
     begin
-       tab := funct.TABLES.item('IT_AFRU');    // tabela rezultatov
-       kk := Tab.rowCount ;
+      vLoggedOn := True;
+      // preberem tabelo potrditev za določen datum
+      SAPFunctions1.Connection := Idispatch(Connection);
+      funct := sapFunctions1.add('ZETA_RFC_READ_AFRU');
+      Funct.EXPORTS('dday').VALUE := dtt;
+      if not funct.call then           // če ni bilo v redu
+      begin
+         LogStep('ZETA_RFC_READ_AFRU', 'RFC failure: ' + funct.exception);
+         showMessage(funct.exception)
+      end
+      else
+      begin
+         tab := funct.TABLES.item('IT_AFRU');    // tabela rezultatov
+         kk := Tab.rowCount ;
 
-       jj := 1 ;
-       i := 1 ;
-       nn := 0 ;
-       plist := Tlist.Create ;
+         jj := 1 ;
+         i := 1 ;
+         nn := 0 ;
+         plist := Tlist.Create ;
 
-       while i <= kk do             // po vseh vrsticah tabele
-       begin
-         // izpišem št. vrstice v obdelavi prenosa
-         Fstart.edit3.text := IntTostr(i)  + '/' + IntTostr(kk)  ;
-         Fstart.Update ;
+         while i <= kk do             // po vseh vrsticah tabele
+         begin
+           // izpišem št. vrstice v obdelavi prenosa
+           Fstart.edit3.text := IntTostr(i)  + '/' + IntTostr(kk)  ;
+           Fstart.Update ;
 
          // preberem osnovne podatke
          st_potr := tab.value(i,2) ;
@@ -401,33 +450,80 @@ end;
              for j := 1 to tabv.rowCount do tabv.DeleteRow ;
            end ;
          end ;
-         inc(i)
-      end ;
+           inc(i)
+        end ;
+        vPrenosOk := True;
+      end
+    end
+    else
+      LogStep('SAP_LOGON', 'LogOn returned FALSE');
+
+    // brisanje storniranih
+    if vPrenosOk and Assigned(plist) and (plist.count > 0) then
+    begin
+      if Table1.Active then
+        Table1.Close;
+      Table1.Exclusive := False;
+      Table1.Open ;
+      try
+        for i := 0 To plist.count-1 do
+        begin
+          poi := plist[i] ;
+          if not Correct(poi^.stp,poi^.dons) then
+          begin
+             Fstart.memo2.Lines.Add(st_potr + '/' + Inttostr(don)) ;
+             Fstart.Update ;
+          end ;
+        end ;
+      finally
+        Table1.Close;
+      end;
+    end ;
+
+    if vPrenosOk then
+      grupirajavtom(dat,ix) ;
+  except
+    on E: Exception do
+    begin
+      LogDbError('PRENOS_RUNTIME', E);
+      ShowMessage('Napaka pri prenosu: ' + E.Message);
+    end;
+  finally
+    if vLoggedOn then
+    begin
+      try
+        Connection.LogOff;
+      except
+        on E: Exception do
+          LogDbError('SAP_LOGOFF', E);
+      end;
+    end;
+
+    if Table1.Active and (Table1.State in dsEditModes) then
+      Table1.Cancel;
+    if Table1.Active then
+      Table1.Close;
+    Table1.exclusive := false ;
+
+    if Assigned(plist) then
+    begin
+      for i := 0 to plist.Count - 1 do
+      begin
+        poi := plist[i];
+        Dispose(poi);
+      end;
+      plist.Free;
+    end;
+
+    if vPrenosOk then
+    begin
       Fstart.edit3.text := 'PRENOS KONČAN' ;
       Fstart.Update ;
+      LogStep('PRENOS_END', 'status=OK');
     end
-  end ;
-  table1.Close ;
-
-  Connection.LogOff;
-  // brisanje storniranih
-  if plist.count > 0 then
-  begin
-    Table1.Open ;
-    for i := 0 To plist.count-1 do
-    begin
-      poi := plist[i] ;
-      if not Correct(poi^.stp,poi^.dons) then
-      begin
-         Fstart.memo2.Lines.Add(st_potr + '/' + Inttostr(don)) ;
-         Fstart.Update ;
-      end ;
-    end ;
-    plist.Free ;
-    Table1.Close ;
-  end ;
-  grupirajavtom(dat,ix) ;
-  Table1.exclusive := false ;
+    else
+      LogStep('PRENOS_END', 'status=FAILED_OR_ABORTED');
+  end;
 end;
 
 // prikaz tabele vseh prenešenih podatkov
@@ -732,7 +828,7 @@ begin
          Table1.FieldByName('PEC').AsFloat := pp;
          Table1.post ;
         end
-      end ;
+      end ;  
     end ;
     table1.Next ;
   end ;
@@ -862,10 +958,24 @@ procedure TFtabela.PisiLog(logtxt : string) ;
 begin
   imef := ExtractFilePath(application.ExeName) + '\log.txt'  ;
   AssignFile(ff, imef);
-  Append(ff);
-  Writeln(ff, dateTimeTostr(now) + '  '  + logtxt) ;
-  Flush(ff);
-  CloseFile(ff);
+  try
+    try
+      if FileExists(imef) then
+        Append(ff)
+      else
+        Rewrite(ff);
+      try
+        Writeln(ff, dateTimeTostr(now) + '  '  + logtxt) ;
+        Flush(ff);
+      finally
+        CloseFile(ff);
+      end;
+    except
+      // log write failures must not stop business flow
+    end;
+  except
+    // do not propagate logging failures
+  end;
 end;
 
 end.

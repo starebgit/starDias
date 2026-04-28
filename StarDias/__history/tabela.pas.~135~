@@ -157,13 +157,7 @@ begin
 
   Table1.Close;
 
-  ShowMessage(
-    'BDE OPEN CHECK' + sLineBreak +
-    'DatabaseName=' + Table1.DatabaseName + sLineBreak +
-    'TableName=' + Table1.TableName + sLineBreak +
-    'FullPath=' + IncludeTrailingPathDelimiter(Table1.DatabaseName) + Table1.TableName + sLineBreak +
-    'FileExists=' + BoolToStr(FileExists(IncludeTrailingPathDelimiter(Table1.DatabaseName) + Table1.TableName), True)
-  );
+
 
 // 1) Try NON-exclusive open first (diagnostic)
 Table1.Exclusive := False;
@@ -191,6 +185,20 @@ except
   Exit;
 end;
 
+  // --- NEW: ponovni prenos always starts clean (prevents duplicates if last run was canceled)
+  if ix = 2 then
+  begin
+    Table1.Filtered := False;
+    Table1.First;
+    while not Table1.Eof do
+    begin
+      if Trunc(Table1.FieldByName('DATUM').AsDateTime) = Trunc(dat) then
+        Table1.Delete
+      else
+        Table1.Next;
+    end;
+  end;
+  // --- END NEW
 
   if ix = 1 then
   begin
@@ -565,7 +573,7 @@ begin
     begin
       stev := round(Table1.FieldByName('DONOS').AsFloat) + stev ;
       Inc(nn) ;
-      if Round(Round(Table1.FieldByName('PEC').AsFloat)) <> 0 then
+      if Round(Table1.FieldByName('PEC').AsFloat) <> 0 then
       begin
         stv1 := stv1 + round(Table1.FieldByName('DONOS').AsFloat);
         Inc(n1)
@@ -659,9 +667,10 @@ avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
     table1.First;
     while not table1.Eof do
     begin
-      kd := table1nalog.Value;
-      avt := Round(table1avtomat.AsFloat);
+      kd  := Table1.FieldByName('NALOG').AsString;
+      avt := Round(Table1.FieldByName('AVTOMAT').AsFloat);
       kljuc := kd + '_' + IntToStr(avt);
+
 
       if dict.ContainsKey(kljuc) then
       begin
@@ -705,25 +714,25 @@ begin
   dd := datetostr(dat) ;
   while not Table1.eof do
   begin
-    if Round(Table1pec.AsFloat) = 0 then
+    if Round(Table1.FieldByName('PEC').AsFloat) = 0 then
     begin
-      kd := copy(Table1koda.value,1,12) ;
-      pp := Fvseb.getpec(kd,Table1datum.value+1) ;
+      kd := Copy(Table1.FieldByName('KODA').AsString, 1, 12);
+      pp := Fvseb.getpec(kd,Table1.FieldByName('DATUM').AsDateTime+1) ;
       if pp > 0 then
       begin
         table1.edit ;
-        Table1pec.AsFloat := pp;
+        Table1.FieldByName('PEC').AsFloat := pp;
         Table1.post ;
       end else
       begin
-        pp := Fvseb.getpec(kd,Table1datum.value) ;
+        pp := Fvseb.getpec(kd,Table1.FieldByName('DATUM').AsDateTime) ;
         if pp > 0 then
         begin
           table1.edit ;
-          Table1pec.AsFloat := pp;
+         Table1.FieldByName('PEC').AsFloat := pp;
          Table1.post ;
         end
-      end ;  
+      end ;
     end ;
     table1.Next ;
   end ;
@@ -793,7 +802,7 @@ end ;
 procedure TFtabela.Koda1Click(Sender: TObject);
     var kd : string[15] ;
 begin
-  kd := table1koda.Value ;
+  kd := Table1.FieldByName('KODA').AsString;
 //  kd := '0055.817.057-00' ;
   If not table1.Filtered then
   begin
